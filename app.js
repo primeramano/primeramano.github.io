@@ -19,7 +19,7 @@ const googleProvider = new GoogleAuthProvider();
 let fbUser = null;
 
 const GH_OWNER = "primeramano";
-const GH_REPO = "catalogo";
+const GH_REPO = "primeramano.github.io";
 const GH_BRANCH = "main";
 const GH_TOKEN_KEY = "pm_gh_token";
 
