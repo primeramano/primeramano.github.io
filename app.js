@@ -828,7 +828,7 @@ let dataLoaded = false;       // ya se cargaron los productos al menos una vez
 
 async function loadStaticProducts(attempt = 1) {
   try {
-    const pRes = await fetch("data/products.json", { cache: "no-store" });
+    const pRes = await fetch("data/products.json?v=" + Date.now(), { cache: "no-store" });
     if (!pRes.ok) throw new Error("bad status " + pRes.status);
     const list = await pRes.json();
     const next = {};
@@ -853,7 +853,7 @@ loadStaticProducts();
 // ninguna cuota diaria ni base de datos externa de por medio.
 async function loadSettings() {
   try {
-    const res = await fetch("data/settings.json", { cache: "no-store" });
+    const res = await fetch("data/settings.json?v=" + Date.now(), { cache: "no-store" });
     if (res.ok) {
       settings = await res.json();
       applyTheme();
