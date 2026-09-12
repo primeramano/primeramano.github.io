@@ -1,6 +1,6 @@
 {
   "brand": "Primera Mano",
-  "description": "Catálogo de Primera Mano: hogar, iluminación, herramientas y más. Armá tu pedido y enviálo por WhatsApp!  \nEnviamos todos los días de Lunes a Sábados. Mínimo de compra $40.000                         \nEnvíos a todo el país + Contraentrega en CABA/GBA",
+  "description": "Catálogo de Primera Mano: hogar, iluminación, herramientas y más.                                     Armá tu pedido y enviálo por WhatsApp!  \nEnviamos todos los días de Lunes a Sábados. Mínimo de compra $40.000                         \nEnvíos a todo el país + Contraentrega en CABA/GBA",
   "whatsapp": "541159436724",
   "theme": {
     "brand": "#1f8a4c",
@@ -11,5 +11,5 @@
   },
   "logo": "assets/logo.jpg",
   "cover": "assets/cover.jpg",
-  "updatedAt": 1789203957688
+  "updatedAt": 1789203978120
 }
