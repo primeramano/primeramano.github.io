@@ -11,12 +11,24 @@
 // ================================================================
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, collection, addDoc, doc, updateDoc, query, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { firebaseConfig, ADMIN_EMAILS } from "./firebase-config.js";
 
 const fbApp = initializeApp(firebaseConfig);
 const auth = getAuth(fbApp);
+const db = getFirestore(fbApp);
 const googleProvider = new GoogleAuthProvider();
 let fbUser = null;
+
+// Pedidos (orders): lo único que sí vive en Firestore además del login. Cada
+// vez que un cliente confirma su pedido en el carrito se crea un documento
+// acá — así el pedido queda registrado en el momento, aunque después no
+// llegue a mandar el mensaje de WhatsApp. Cualquiera puede CREAR un pedido
+// (regla "allow create: if true" en firestore.rules), pero solo el admin
+// puede leerlos o cambiarles el estado.
+let orders = [];
+let ordersFilterEstado = "";
+let unsubscribeOrders = null;
 
 const GH_OWNER = "primeramano";
 const GH_REPO = "primeramano.github.io";
@@ -543,8 +555,8 @@ function renderCartDrawer() {
       <div class="field">
         <label>Forma de pago *</label>
         <div class="radio-group">
-          <label class="radio-opt"><input type="radio" name="co-pago" value="efectivo" ${d.pago === "efectivo" ? "checked" : ""}> Efectivo<span class="hint">El pago se coordina por WhatsApp</span></label>
-          <label class="radio-opt"><input type="radio" name="co-pago" value="transferencia" ${d.pago === "transferencia" ? "checked" : ""}> Transferencia<span class="hint">El pago se coordina por WhatsApp</span></label>
+          <label class="radio-opt"><input type="radio" name="co-pago" value="efectivo" ${d.pago === "efectivo" ? "checked" : ""}> Efectivo<span class="hint">Según zona: CABA y GBA (zona Banfield y alrededores). Se coordina por WhatsApp</span></label>
+          <label class="radio-opt"><input type="radio" name="co-pago" value="transferencia" ${d.pago === "transferencia" ? "checked" : ""}> Transferencia<span class="hint">Te compartimos los datos al confirmar el pedido</span></label>
         </div>
       </div>
       <div class="field">
@@ -629,11 +641,27 @@ function renderCartDrawer() {
         <div><b>${escapeHtml(checkoutData.nombre)}</b> · ${checkoutData.telefono}</div>
         <div>${checkoutData.pago === "efectivo" ? "Efectivo" : "Transferencia"} · ${checkoutData.entrega === "retiro" ? "Retiro en el local" : "Envío a domicilio"}</div>
         ${checkoutData.entrega === "domicilio" ? `<div>${escapeHtml(checkoutData.entreCalles)}, ${escapeHtml(checkoutData.localidad)}, ${escapeHtml(checkoutData.provincia)} (${escapeHtml(checkoutData.cp)})</div>` : ""}
-      </div>`;
+      </div>
+      ${checkoutData.pago === "transferencia" && settings.transferMessage ? `
+      <div class="transfer-box">
+        <div class="transfer-box-title">Datos para transferir</div>
+        <div class="transfer-box-text">${escapeHtml(settings.transferMessage).replace(/\n/g, "<br>")}</div>
+        <button type="button" class="transfer-copy-btn" id="transfer-copy-btn">Copiar datos</button>
+      </div>` : ""}`;
     foot.innerHTML = `
       <div class="total-row"><span>Total estimado</span><span>${fmtARS(cartTotal())}</span></div>
       <a id="wa-btn" class="wa-btn" href="${waOrderLink()}" target="_blank" rel="noopener">Completar pedido en WhatsApp</a>`;
+    if ($("#transfer-copy-btn")) {
+      $("#transfer-copy-btn").onclick = () => {
+        navigator.clipboard.writeText(settings.transferMessage)
+          .then(() => toast("Datos copiados"))
+          .catch(() => toast("No se pudo copiar", "error"));
+      };
+    }
     $("#wa-btn").onclick = () => {
+      // El pedido queda registrado en el panel apenas el cliente confirma acá,
+      // independientemente de que después llegue o no a mandar el WhatsApp.
+      submitOrder(lines, { ...checkoutData }, cartTotal());
       trackMeta("Contact", {
         content_ids: lines.map(l => l.item.id), content_type: "product",
         num_items: cartCount(), value: cartTotal(), currency: "ARS"
@@ -673,8 +701,106 @@ function waOrderLink() {
   msg += `Teléfono: ${d.telefono}\n`;
   if (d.dni) msg += `DNI: ${d.dni}\n`;
   if (d.notas) msg += `Nota: ${d.notas}\n`;
+  if (d.pago === "transferencia" && settings.transferMessage) {
+    msg += `\nDatos para transferir:\n${settings.transferMessage}\n`;
+  }
   msg += `\n¿Está todo disponible?`;
   return `https://wa.me/${number}?text=${encodeURIComponent(msg)}`;
+}
+
+// ---------- Pedidos (orders) ----------
+// Se llama al confirmar el pedido en el carrito (botón final). Guarda el
+// pedido en Firestore ANTES/EN PARALELO a abrir WhatsApp, para que quede
+// registrado aunque el cliente no llegue a apretar "enviar" en WhatsApp.
+// Si por lo que sea falla (sin internet, etc.) no bloquea ni rompe el envío
+// del pedido por WhatsApp — solo se pierde el registro interno de ese pedido.
+async function submitOrder(lines, d, total) {
+  try {
+    await addDoc(collection(db, "orders"), {
+      items: lines.map(l => ({ id: l.item.id, title: l.item.title, price: l.item.price, qty: l.qty })),
+      total,
+      nombre: d.nombre,
+      telefono: d.telefono,
+      dni: d.dni || "",
+      pago: d.pago,
+      entrega: d.entrega,
+      entreCalles: d.entreCalles || "",
+      localidad: d.localidad || "",
+      provincia: d.provincia || "",
+      cp: d.cp || "",
+      notas: d.notas || "",
+      estado: "nuevo",
+      createdAt: serverTimestamp(),
+    });
+  } catch (e) {
+    console.error("No se pudo registrar el pedido en el panel", e);
+  }
+}
+
+function startOrdersListener() {
+  if (unsubscribeOrders) return; // ya está escuchando
+  try {
+    const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
+    unsubscribeOrders = onSnapshot(q, (snap) => {
+      orders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderAdminOrders();
+    }, (err) => console.error("orders listener", err));
+  } catch (e) { console.error(e); }
+}
+function stopOrdersListener() {
+  if (unsubscribeOrders) { unsubscribeOrders(); unsubscribeOrders = null; }
+  orders = [];
+}
+
+const ESTADO_LABELS = { nuevo: "Nuevo", en_proceso: "En proceso", entregado: "Entregado", cancelado: "Cancelado" };
+function fmtOrderDate(ts) {
+  try {
+    if (!ts || !ts.toDate) return "";
+    return ts.toDate().toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  } catch (e) { return ""; }
+}
+function renderAdminOrders() {
+  const wrap = $("#admin-orders-list");
+  const empty = $("#orders-empty");
+  if (!wrap) return;
+  const list = ordersFilterEstado ? orders.filter(o => (o.estado || "nuevo") === ordersFilterEstado) : orders;
+  empty.hidden = list.length > 0;
+  wrap.innerHTML = list.map(o => {
+    const items = (o.items || []).map(it => `${it.qty} x ${escapeHtml(it.title)}`).join("<br>");
+    const dirLinea = o.entrega === "domicilio"
+      ? `${escapeHtml(o.entreCalles || "")}, ${escapeHtml(o.localidad || "")}, ${escapeHtml(o.provincia || "")} (${escapeHtml(o.cp || "")})`
+      : "Retiro en el local";
+    const waNum = (o.telefono || "").replace(/\D/g, "");
+    return `
+      <div class="admin-order-row" data-id="${o.id}">
+        <div class="aor-head">
+          <b>${escapeHtml(o.nombre || "Sin nombre")}</b>
+          <span class="aor-date">${fmtOrderDate(o.createdAt)}</span>
+        </div>
+        <div class="aor-items">${items}</div>
+        <div class="aor-meta">
+          ${o.pago === "efectivo" ? "Efectivo" : "Transferencia"} · ${dirLinea}
+          ${waNum ? ` · <a href="https://wa.me/${waNum}" target="_blank" rel="noopener">${escapeHtml(o.telefono)}</a>` : ""}
+        </div>
+        <div class="aor-foot">
+          <span class="aor-total">${fmtARS(o.total || 0)}</span>
+          <select class="order-status-select" data-id="${o.id}">
+            ${Object.entries(ESTADO_LABELS).map(([v, label]) => `<option value="${v}" ${(o.estado || "nuevo") === v ? "selected" : ""}>${label}</option>`).join("")}
+          </select>
+        </div>
+      </div>`;
+  }).join("");
+  wrap.querySelectorAll(".order-status-select").forEach(sel => {
+    sel.onchange = async () => {
+      try {
+        await updateDoc(doc(db, "orders", sel.dataset.id), { estado: sel.value });
+        toast("Estado actualizado");
+      } catch (e) { console.error(e); toast("No se pudo actualizar el estado", "error"); }
+    };
+  });
+}
+if ($("#orders-filter-estado")) {
+  $("#orders-filter-estado").onchange = (e) => { ordersFilterEstado = e.target.value; renderAdminOrders(); };
 }
 
 // ---------- Product modal (public detail view) ----------
@@ -812,6 +938,7 @@ onAuthStateChanged(auth, async (user) => {
   } else {
     isAdmin = false;
   }
+  if (isAdmin) startOrdersListener(); else stopOrdersListener();
   renderAuthSlot();
   renderGrid();
 });
@@ -887,7 +1014,9 @@ $$(".admin-tab").forEach(tab => {
     $$(".admin-tab").forEach(t => t.classList.remove("active"));
     tab.classList.add("active");
     $("#tab-productos").hidden = tab.dataset.tab !== "productos";
+    $("#tab-pedidos").hidden = tab.dataset.tab !== "pedidos";
     $("#tab-diseno").hidden = tab.dataset.tab !== "diseno";
+    if (tab.dataset.tab === "pedidos") renderAdminOrders();
   };
 });
 
@@ -1053,6 +1182,7 @@ function fillConfigForm() {
   $("#cfg-brand").value = settings.brand || "";
   $("#cfg-desc").value = settings.description || "";
   $("#cfg-whatsapp").value = settings.whatsapp || "";
+  $("#cfg-transfer-msg").value = settings.transferMessage || "";
   const theme = settings.theme || {};
   $("#cfg-color-brand").value = theme.brand || "#1f8a4c";
   $("#cfg-color-brand-hex").textContent = theme.brand || "#1f8a4c";
@@ -1093,6 +1223,7 @@ $("#save-config-btn").onclick = async () => {
     brand: $("#cfg-brand").value.trim() || "Primera Mano",
     description: $("#cfg-desc").value.trim(),
     whatsapp: $("#cfg-whatsapp").value.replace(/\D/g, ""),
+    transferMessage: $("#cfg-transfer-msg").value.trim(),
     theme: {
       brand: $("#cfg-color-brand").value,
       bg: $("#cfg-color-bg").value,

@@ -161,6 +161,7 @@ src="https://www.facebook.com/tr?id=1021991960884965&ev=PageView&noscript=1"
   </div>
   <div class="admin-tabs">
     <button class="admin-tab active" data-tab="productos">Productos</button>
+    <button class="admin-tab" data-tab="pedidos">Pedidos</button>
     <button class="admin-tab" data-tab="diseno">Diseño y datos</button>
   </div>
 
@@ -178,6 +179,21 @@ src="https://www.facebook.com/tr?id=1021991960884965&ev=PageView&noscript=1"
     <div id="admin-product-list"></div>
   </div>
 
+  <!-- Pedidos tab -->
+  <div class="admin-body" id="tab-pedidos" hidden>
+    <div class="orders-filter">
+      <select id="orders-filter-estado">
+        <option value="">Todos los estados</option>
+        <option value="nuevo">Nuevo</option>
+        <option value="en_proceso">En proceso</option>
+        <option value="entregado">Entregado</option>
+        <option value="cancelado">Cancelado</option>
+      </select>
+    </div>
+    <p id="orders-empty" style="font-size:.85rem;color:var(--muted);">Todavía no hay pedidos.</p>
+    <div id="admin-orders-list"></div>
+  </div>
+
   <!-- Diseño tab -->
   <div class="admin-body" id="tab-diseno" hidden>
     <div class="field">
@@ -191,6 +207,11 @@ src="https://www.facebook.com/tr?id=1021991960884965&ev=PageView&noscript=1"
     <div class="field">
       <label>WhatsApp (solo números, con código de país)</label>
       <input type="text" id="cfg-whatsapp" placeholder="5491159436724">
+    </div>
+    <div class="field">
+      <label>Mensaje con los datos para transferir</label>
+      <textarea id="cfg-transfer-msg" rows="4" placeholder="Ej: Alias: primera.mano.mp&#10;CBU: 0000003100...&#10;Titular: Santiago Belfiore"></textarea>
+      <p class="field-hint">Se le muestra al cliente en el carrito apenas confirma sus datos de envío, si elige pagar por transferencia — y se incluye también en el mensaje de WhatsApp del pedido.</p>
     </div>
     <div class="field">
       <label>Logo</label>

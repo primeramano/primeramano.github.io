@@ -411,6 +411,23 @@ a.wa-btn{background:#25D366;}
 .pill{display:inline-flex;align-items:center;gap:5px;font-size:.72rem;font-weight:700;padding:4px 9px;border-radius:999px;}
 .pill.ok{background:#e7f7ee;color:#1f8a4c;}
 .pill.warn{background:#fdeeee;color:#c0392b;}
+
+.orders-filter{margin-bottom:12px;}
+.orders-filter select{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface);font-size:.85rem;}
+.admin-order-row{padding:11px 0;border-bottom:1px solid var(--border);}
+.admin-order-row .aor-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:.85rem;}
+.admin-order-row .aor-date{font-size:.72rem;color:var(--muted);flex:none;}
+.admin-order-row .aor-items{font-size:.78rem;color:var(--text);margin-top:4px;line-height:1.5;}
+.admin-order-row .aor-meta{font-size:.75rem;color:var(--muted);margin-top:4px;}
+.admin-order-row .aor-meta a{color:var(--brand);}
+.admin-order-row .aor-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px;}
+.admin-order-row .aor-total{font-weight:700;font-size:.85rem;}
+.order-status-select{padding:6px 9px;border:1px solid var(--border);border-radius:7px;font-size:.78rem;background:var(--surface);}
+
+.transfer-box{margin-top:14px;padding:12px 14px;border-radius:12px;background:#eef7f1;border:1px solid #cfe9d8;}
+.transfer-box-title{font-size:.8rem;font-weight:700;color:#1f8a4c;margin-bottom:6px;}
+.transfer-box-text{font-size:.85rem;line-height:1.5;color:var(--text);}
+.transfer-copy-btn{margin-top:10px;padding:7px 12px;border-radius:8px;border:1px solid #cfe9d8;background:#fff;font-size:.78rem;font-weight:600;cursor:pointer;}
 .toast{
   position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
   background:#17181a;color:#fff;padding:10px 18px;border-radius:999px;font-size:.85rem;
