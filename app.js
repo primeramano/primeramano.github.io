@@ -143,6 +143,14 @@ function trackMeta(event, params) {
 const SHEET_SYNC_ENDPOINT = "https://script.google.com/macros/s/AKfycbxLgrmZ_7YhE2DpR6SEZc_qUpFd7fnk2C6uo3qefB83CSlHMYPSRFv3M8cJfFXlF5_6Bg/exec";
 const SHEET_SYNC_SECRET = "715fcbc73369411944260f4c3b57a315";
 
+// ---------- Mercado Pago (Checkout Pro) ----------
+// GitHub Pages no tiene backend propio, así que la preferencia de pago se
+// crea en una función serverless aparte (Vercel). Reemplazar esta URL por
+// la real una vez deployada — ver README de la integración. Mientras diga
+// "PENDIENTE_CONFIGURAR", el botón de Mercado Pago avisa que todavía no
+// está listo en vez de fallar en silencio.
+const MP_FUNCTION_ENDPOINT = "PENDIENTE_CONFIGURAR";
+
 async function pushOrderToSheet(order) {
   try {
     const res = await fetch(SHEET_SYNC_ENDPOINT, {
@@ -153,7 +161,7 @@ async function pushOrderToSheet(order) {
         orderId: order.id,
         cliente: order.nombre || "",
         contacto: order.telefono || "",
-        metodoPago: order.pago === "efectivo" ? "Efectivo" : "Transferencia",
+        metodoPago: pagoLabel(order.pago),
         entrega: order.entrega === "retiro" ? "Retiro en el lugar (Banfield Centro)" : "Envío a domicilio",
         notas: order.notas || "",
         items: (order.items && order.items.length ? order.items : [{ title: "", qty: "", price: "" }])
@@ -208,6 +216,9 @@ let checkoutData = { nombre: "", pago: "", entrega: "", entreCalles: "", localid
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 function fmtARS(n) { return "$" + Math.round(n).toLocaleString("es-AR"); }
+function pagoLabel(pago) {
+  return pago === "efectivo" ? "Efectivo" : pago === "mercadopago" ? "Mercado Pago" : "Transferencia";
+}
 function toast(msg, kind = "ok") {
   const t = $("#toast");
   t.textContent = (kind === "error" ? "⚠ " : kind === "ok" ? "✔ " : "") + msg;
@@ -594,6 +605,7 @@ function renderCartDrawer() {
         <div class="radio-group">
           <label class="radio-opt"><input type="radio" name="co-pago" value="efectivo" ${d.pago === "efectivo" ? "checked" : ""}> Efectivo<span class="hint">Según zona: CABA y GBA (zona Banfield y alrededores). Se coordina por WhatsApp</span></label>
           <label class="radio-opt"><input type="radio" name="co-pago" value="transferencia" ${d.pago === "transferencia" ? "checked" : ""}> Transferencia<span class="hint">Te compartimos los datos al confirmar el pedido</span></label>
+          <label class="radio-opt"><input type="radio" name="co-pago" value="mercadopago" ${d.pago === "mercadopago" ? "checked" : ""}> Mercado Pago<span class="hint">Pagás online con tarjeta, débito o efectivo (Rapipago/Pago Fácil)</span></label>
         </div>
       </div>
       <div class="field">
@@ -676,7 +688,7 @@ function renderCartDrawer() {
         </div>`).join("")}
       <div class="summary-buyer">
         <div><b>${escapeHtml(checkoutData.nombre)}</b> · ${checkoutData.telefono}</div>
-        <div>${checkoutData.pago === "efectivo" ? "Efectivo" : "Transferencia"} · ${checkoutData.entrega === "retiro" ? "Retiro en el lugar (Banfield Centro)" : "Envío a domicilio"}</div>
+        <div>${pagoLabel(checkoutData.pago)} · ${checkoutData.entrega === "retiro" ? "Retiro en el lugar (Banfield Centro)" : "Envío a domicilio"}</div>
         ${checkoutData.entrega === "domicilio" ? `<div>${escapeHtml(checkoutData.entreCalles)}, ${escapeHtml(checkoutData.localidad)}, ${escapeHtml(checkoutData.provincia)} (${escapeHtml(checkoutData.cp)})</div>` : ""}
       </div>
       ${checkoutData.pago === "transferencia" && settings.transferMessage ? `
@@ -685,9 +697,12 @@ function renderCartDrawer() {
         <div class="transfer-box-text">${escapeHtml(settings.transferMessage).replace(/\n/g, "<br>")}</div>
         <button type="button" class="transfer-copy-btn" id="transfer-copy-btn">Copiar datos</button>
       </div>` : ""}`;
+    const isMP = checkoutData.pago === "mercadopago";
     foot.innerHTML = `
       <div class="total-row"><span>Total estimado</span><span>${fmtARS(cartTotal())}</span></div>
-      <a id="wa-btn" class="wa-btn" href="${waOrderLink()}" target="_blank" rel="noopener">${checkoutData.pago === "transferencia" ? "PAGO SEGURO 🔒" : "Completar pedido en WhatsApp"}</a>`;
+      ${isMP
+        ? `<button type="button" id="mp-btn" class="wa-btn">Pagar con Mercado Pago 💳</button>`
+        : `<a id="wa-btn" class="wa-btn" href="${waOrderLink()}" target="_blank" rel="noopener">${checkoutData.pago === "transferencia" ? "PAGO SEGURO 🔒" : "Completar pedido en WhatsApp"}</a>`}`;
     if ($("#transfer-copy-btn")) {
       $("#transfer-copy-btn").onclick = () => {
         navigator.clipboard.writeText(settings.transferMessage)
@@ -695,25 +710,18 @@ function renderCartDrawer() {
           .catch(() => toast("No se pudo copiar", "error"));
       };
     }
-    $("#wa-btn").onclick = () => {
-      // El pedido queda registrado en el panel apenas el cliente confirma acá,
-      // independientemente de que después llegue o no a mandar el WhatsApp.
-      submitOrder(lines, { ...checkoutData }, cartTotal());
-      trackMeta("Contact", {
-        content_ids: lines.map(l => l.item.id), content_type: "product",
-        num_items: cartCount(), value: cartTotal(), currency: "ARS"
-      });
-      // Además de "Contact" (que ya se usaba como señal principal), se manda
-      // también "Purchase" en este mismo momento — es la señal más fuerte que
-      // entiende Meta para optimizar campañas por resultado real de venta.
-      // Se dispara acá (al confirmar el pedido) y no recién cuando se marca
-      // "Entregado" en el panel, porque ese paso lo hace el admin desde su
-      // propio navegador — atribuírselo ahí ensuciaría el matching del pixel
-      // con los datos del cliente real.
+
+    // trackMeta("Purchase", ...) se dispara acá (al confirmar el pedido) y no
+    // recién cuando se marca "Entregado" en el panel, porque ese paso lo hace
+    // el admin desde su propio navegador — atribuírselo ahí ensuciaría el
+    // matching del pixel con los datos del cliente real.
+    function trackPurchase() {
       trackMeta("Purchase", {
         content_ids: lines.map(l => l.item.id), content_type: "product",
         num_items: cartCount(), value: cartTotal(), currency: "ARS"
       });
+    }
+    function resetCartAndClose(msg) {
       setTimeout(() => {
         cart = {};
         saveCart();
@@ -721,9 +729,57 @@ function renderCartDrawer() {
         checkoutData = { nombre: "", pago: "", entrega: "", entreCalles: "", localidad: "", provincia: "", cp: "", telefono: "", dni: "", notas: "" };
         renderCart();
         closeCartDrawer();
-        toast("¡Pedido enviado!");
+        toast(msg);
       }, 300);
-    };
+    }
+
+    if (isMP) {
+      $("#mp-btn").onclick = async () => {
+        if (MP_FUNCTION_ENDPOINT === "PENDIENTE_CONFIGURAR") {
+          toast("El pago con Mercado Pago todavía no está activado en el sitio", "error");
+          return;
+        }
+        const btn = $("#mp-btn");
+        btn.disabled = true;
+        btn.textContent = "Generando pago...";
+        // El pedido queda registrado ANTES de ir a Mercado Pago (estado
+        // "pendiente de pago") — así, aunque el cliente abandone el pago,
+        // el panel ya tiene el registro del intento.
+        const orderId = await submitOrder(lines, { ...checkoutData }, cartTotal());
+        try {
+          const res = await fetch(`${MP_FUNCTION_ENDPOINT}/api/create-preference`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              orderId,
+              items: lines.map(l => ({ id: l.item.id, title: l.item.title, price: l.item.price, qty: l.qty })),
+              buyer: { nombre: checkoutData.nombre, telefono: checkoutData.telefono },
+            }),
+          });
+          const j = await res.json();
+          if (!res.ok || !j.init_point) throw new Error(j.error || "sin init_point");
+          trackPurchase();
+          location.href = j.init_point; // redirige al Checkout Pro de Mercado Pago
+        } catch (e) {
+          console.error("mercado pago create-preference", e);
+          toast("No se pudo iniciar el pago con Mercado Pago. Probá de nuevo.", "error");
+          btn.disabled = false;
+          btn.textContent = "Pagar con Mercado Pago 💳";
+        }
+      };
+    } else {
+      $("#wa-btn").onclick = () => {
+        // El pedido queda registrado en el panel apenas el cliente confirma acá,
+        // independientemente de que después llegue o no a mandar el WhatsApp.
+        submitOrder(lines, { ...checkoutData }, cartTotal());
+        trackMeta("Contact", {
+          content_ids: lines.map(l => l.item.id), content_type: "product",
+          num_items: cartCount(), value: cartTotal(), currency: "ARS"
+        });
+        trackPurchase();
+        resetCartAndClose("¡Pedido enviado!");
+      };
+    }
   }
 }
 
@@ -741,7 +797,7 @@ function waOrderLink() {
   lines.forEach(l => { msg += `• ${l.item.title} x${l.qty} — ${fmtARS(l.item.price * l.qty)}\n`; });
   msg += `\nTotal: ${fmtARS(cartTotal())}\n\n`;
   msg += `Nombre: ${d.nombre}\n`;
-  msg += `Forma de pago: ${d.pago === "efectivo" ? "Efectivo" : "Transferencia"}\n`;
+  msg += `Forma de pago: ${pagoLabel(d.pago)}\n`;
   msg += `Entrega: ${d.entrega === "retiro" ? "Retiro en el lugar (Banfield Centro)" : "Envío a domicilio"}\n`;
   if (d.entrega === "domicilio") {
     msg += `Dirección: ${d.entreCalles}, ${d.localidad}, ${d.provincia} (CP ${d.cp})\n`;
@@ -764,7 +820,7 @@ function waOrderLink() {
 // del pedido por WhatsApp — solo se pierde el registro interno de ese pedido.
 async function submitOrder(lines, d, total) {
   try {
-    await addDoc(collection(db, "orders"), {
+    const ref = await addDoc(collection(db, "orders"), {
       items: lines.map(l => ({ id: l.item.id, title: l.item.title, price: l.item.price, qty: l.qty })),
       total,
       nombre: d.nombre,
@@ -778,10 +834,15 @@ async function submitOrder(lines, d, total) {
       cp: d.cp || "",
       notas: d.notas || "",
       estado: "nuevo",
+      // Con Mercado Pago el pedido arranca "pendiente de pago" — el webhook
+      // de la función serverless confirma cuando el pago queda aprobado.
+      ...(d.pago === "mercadopago" ? { pagoEstado: "pendiente" } : {}),
       createdAt: serverTimestamp(),
     });
+    return ref.id;
   } catch (e) {
     console.error("No se pudo registrar el pedido en el panel", e);
+    return null;
   }
 }
 
@@ -827,7 +888,7 @@ function renderAdminOrders() {
         </div>
         <div class="aor-items">${items}</div>
         <div class="aor-meta">
-          ${o.pago === "efectivo" ? "Efectivo" : "Transferencia"} · ${dirLinea}
+          ${pagoLabel(o.pago)} · ${dirLinea}
           ${waNum ? ` · <a href="https://wa.me/${waNum}" target="_blank" rel="noopener">${escapeHtml(o.telefono)}</a>` : ""}
         </div>
         <div class="aor-foot">
