@@ -131,6 +131,43 @@ function trackMeta(event, params) {
   } catch (e) {}
 }
 
+// ---------- Planilla de resultados (Google Sheets) ----------
+// Cuando en el panel "Pedidos" se marca un pedido como "Entregado", se vuelca
+// automáticamente a la hoja "Pedidos" de la planilla Primera_Mano_Control vía
+// un Google Apps Script publicado como Web App (doPost). No hay backend
+// propio en este sitio (todo corre en el navegador), así que la URL del Web
+// App queda visible en este archivo — igual que ya pasaba con el endpoint de
+// Meta CAPI. El "secret" es solo un freno liviano contra spam casual, no una
+// autenticación real; si algún día se detectan filas falsas en la planilla,
+// avisar para regenerar el secret y el deploy del Apps Script.
+const SHEET_SYNC_ENDPOINT = "https://script.google.com/macros/s/AKfycbxLgrmZ_7YhE2DpR6SEZc_qUpFd7fnk2C6uo3qefB83CSlHMYPSRFv3M8cJfFXlF5_6Bg/exec";
+const SHEET_SYNC_SECRET = "715fcbc73369411944260f4c3b57a315";
+
+async function pushOrderToSheet(order) {
+  try {
+    const res = await fetch(SHEET_SYNC_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" }, // evita el preflight CORS con Apps Script
+      body: JSON.stringify({
+        secret: SHEET_SYNC_SECRET,
+        orderId: order.id,
+        cliente: order.nombre || "",
+        contacto: order.telefono || "",
+        metodoPago: order.pago === "efectivo" ? "Efectivo" : "Transferencia",
+        entrega: order.entrega === "retiro" ? "Retiro en el lugar (Banfield Centro)" : "Envío a domicilio",
+        notas: order.notas || "",
+        items: (order.items && order.items.length ? order.items : [{ title: "", qty: "", price: "" }])
+          .map(it => ({ producto: it.title, cantidad: it.qty, precioUnit: it.price })),
+      }),
+    });
+    const j = await res.json().catch(() => ({}));
+    return !!(j && j.ok);
+  } catch (e) {
+    console.error("No se pudo volcar el pedido a la planilla de resultados", e);
+    return false;
+  }
+}
+
 function githubErrorMessage(e) {
   const s = ((e && e.message) || "").toLowerCase();
   if (s.includes("401") || s.includes("bad credentials")) {
@@ -562,7 +599,7 @@ function renderCartDrawer() {
       <div class="field">
         <label>Método de entrega *</label>
         <div class="radio-group">
-          <label class="radio-opt"><input type="radio" name="co-entrega" value="retiro" ${d.entrega === "retiro" ? "checked" : ""}> Retiro en el local</label>
+          <label class="radio-opt"><input type="radio" name="co-entrega" value="retiro" ${d.entrega === "retiro" ? "checked" : ""}> Retiro en el lugar (Banfield Centro)</label>
           <label class="radio-opt"><input type="radio" name="co-entrega" value="domicilio" ${d.entrega === "domicilio" ? "checked" : ""}> Envío a domicilio</label>
         </div>
       </div>
@@ -639,7 +676,7 @@ function renderCartDrawer() {
         </div>`).join("")}
       <div class="summary-buyer">
         <div><b>${escapeHtml(checkoutData.nombre)}</b> · ${checkoutData.telefono}</div>
-        <div>${checkoutData.pago === "efectivo" ? "Efectivo" : "Transferencia"} · ${checkoutData.entrega === "retiro" ? "Retiro en el local" : "Envío a domicilio"}</div>
+        <div>${checkoutData.pago === "efectivo" ? "Efectivo" : "Transferencia"} · ${checkoutData.entrega === "retiro" ? "Retiro en el lugar (Banfield Centro)" : "Envío a domicilio"}</div>
         ${checkoutData.entrega === "domicilio" ? `<div>${escapeHtml(checkoutData.entreCalles)}, ${escapeHtml(checkoutData.localidad)}, ${escapeHtml(checkoutData.provincia)} (${escapeHtml(checkoutData.cp)})</div>` : ""}
       </div>
       ${checkoutData.pago === "transferencia" && settings.transferMessage ? `
@@ -694,7 +731,7 @@ function waOrderLink() {
   msg += `\nTotal: ${fmtARS(cartTotal())}\n\n`;
   msg += `Nombre: ${d.nombre}\n`;
   msg += `Forma de pago: ${d.pago === "efectivo" ? "Efectivo" : "Transferencia"}\n`;
-  msg += `Entrega: ${d.entrega === "retiro" ? "Retiro en el local" : "Envío a domicilio"}\n`;
+  msg += `Entrega: ${d.entrega === "retiro" ? "Retiro en el lugar (Banfield Centro)" : "Envío a domicilio"}\n`;
   if (d.entrega === "domicilio") {
     msg += `Dirección: ${d.entreCalles}, ${d.localidad}, ${d.provincia} (CP ${d.cp})\n`;
   }
@@ -769,7 +806,7 @@ function renderAdminOrders() {
     const items = (o.items || []).map(it => `${it.qty} x ${escapeHtml(it.title)}`).join("<br>");
     const dirLinea = o.entrega === "domicilio"
       ? `${escapeHtml(o.entreCalles || "")}, ${escapeHtml(o.localidad || "")}, ${escapeHtml(o.provincia || "")} (${escapeHtml(o.cp || "")})`
-      : "Retiro en el local";
+      : "Retiro en el lugar (Banfield Centro)";
     const waNum = (o.telefono || "").replace(/\D/g, "");
     return `
       <div class="admin-order-row" data-id="${o.id}">
@@ -792,10 +829,24 @@ function renderAdminOrders() {
   }).join("");
   wrap.querySelectorAll(".order-status-select").forEach(sel => {
     sel.onchange = async () => {
+      const newEstado = sel.value;
+      const order = orders.find(o => o.id === sel.dataset.id);
       try {
-        await updateDoc(doc(db, "orders", sel.dataset.id), { estado: sel.value });
+        await updateDoc(doc(db, "orders", sel.dataset.id), { estado: newEstado });
         toast("Estado actualizado");
-      } catch (e) { console.error(e); toast("No se pudo actualizar el estado", "error"); }
+      } catch (e) { console.error(e); toast("No se pudo actualizar el estado", "error"); return; }
+      // Al marcar "Entregado" se vuelca a la planilla de resultados — una sola
+      // vez por pedido (sheetSynced evita duplicar la fila si después se
+      // cambia el estado y se vuelve a poner "Entregado").
+      if (newEstado === "entregado" && order && !order.sheetSynced) {
+        const ok = await pushOrderToSheet(order);
+        if (ok) {
+          updateDoc(doc(db, "orders", sel.dataset.id), { sheetSynced: true }).catch(() => {});
+          toast("Pedido volcado a la planilla de resultados");
+        } else {
+          toast("El pedido se marcó Entregado pero no se pudo volcar a la planilla — reintentá cambiando el estado", "error");
+        }
+      }
     };
   });
 }
