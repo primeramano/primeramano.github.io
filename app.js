@@ -219,14 +219,21 @@ function fmtARS(n) { return "$" + Math.round(n).toLocaleString("es-AR"); }
 function pagoLabel(pago) {
   return pago === "efectivo" ? "EFECTIVO/CONTRA-ENTREGA" : pago === "mercadopago" ? "Mercado Pago" : "Transferencia";
 }
-// Costo de envío fijo por zona (reparto propio CABA+GBA). Retiro en el
-// lugar no tiene costo. Varía según forma de pago porque cada uno tiene
-// distinto costo operativo para el negocio.
+// Costo de envío fijo por zona (reparto propio CABA+GBA). Con Mercado Pago
+// el costo se cobra siempre, sin importar el método de entrega (incluso
+// retiro en el lugar). Para efectivo y transferencia, retiro en el lugar
+// no tiene costo. Varía según forma de pago porque cada uno tiene distinto
+// costo operativo para el negocio.
 function shippingCost(pago, entrega) {
+  if (pago === "mercadopago") return 8500;
   if (entrega !== "domicilio") return 0;
   if (pago === "efectivo") return 5000;
-  if (pago === "mercadopago" || pago === "transferencia") return 8000;
+  if (pago === "transferencia") return 8000;
   return 0;
+}
+// Etiqueta del cargo de envío/entrega mostrado en el resumen y en WhatsApp.
+function envioLabel(pago, entrega) {
+  return entrega === "domicilio" ? "Envío a domicilio" : "Cargo Mercado Pago";
 }
 function toast(msg, kind = "ok") {
   const t = $("#toast");
@@ -700,12 +707,12 @@ function renderCartDrawer() {
       ${envio > 0 ? `
         <div class="summary-line">
           <span class="qty">1</span>
-          <div class="info"><div class="t">Envío a domicilio</div></div>
+          <div class="info"><div class="t">${envioLabel(checkoutData.pago, checkoutData.entrega)}</div></div>
           <div class="amt">${fmtARS(envio)}</div>
         </div>` : ""}
       <div class="summary-buyer">
         <div><b>${escapeHtml(checkoutData.nombre)}</b> · ${checkoutData.telefono}</div>
-        <div>${pagoLabel(checkoutData.pago)} · ${checkoutData.entrega === "retiro" ? "Retiro en el lugar (Banfield Centro) · Sin costo" : "Envío a domicilio"}</div>
+        <div>${pagoLabel(checkoutData.pago)} · ${checkoutData.entrega === "retiro" ? `Retiro en el lugar (Banfield Centro)${envio > 0 ? "" : " · Sin costo"}` : "Envío a domicilio"}</div>
         ${checkoutData.entrega === "domicilio" ? `<div>${escapeHtml(checkoutData.entreCalles)}, ${escapeHtml(checkoutData.localidad)}, ${escapeHtml(checkoutData.provincia)} (${escapeHtml(checkoutData.cp)})</div>` : ""}
       </div>
       ${checkoutData.pago === "transferencia" && settings.transferMessage ? `
