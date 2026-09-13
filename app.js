@@ -217,7 +217,16 @@ const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 function fmtARS(n) { return "$" + Math.round(n).toLocaleString("es-AR"); }
 function pagoLabel(pago) {
-  return pago === "efectivo" ? "Efectivo" : pago === "mercadopago" ? "Mercado Pago" : "Transferencia";
+  return pago === "efectivo" ? "EFECTIVO/CONTRA-ENTREGA" : pago === "mercadopago" ? "Mercado Pago" : "Transferencia";
+}
+// Costo de envío fijo por zona (reparto propio CABA+GBA). Retiro en el
+// lugar no tiene costo. Varía según forma de pago porque cada uno tiene
+// distinto costo operativo para el negocio.
+function shippingCost(pago, entrega) {
+  if (entrega !== "domicilio") return 0;
+  if (pago === "efectivo") return 5000;
+  if (pago === "mercadopago" || pago === "transferencia") return 8000;
+  return 0;
 }
 function toast(msg, kind = "ok") {
   const t = $("#toast");
@@ -603,7 +612,7 @@ function renderCartDrawer() {
       <div class="field">
         <label>Forma de pago *</label>
         <div class="radio-group">
-          <label class="radio-opt"><input type="radio" name="co-pago" value="efectivo" ${d.pago === "efectivo" ? "checked" : ""}> Efectivo<span class="hint">Según zona: CABA y GBA (zona Banfield y alrededores). Se coordina por WhatsApp</span></label>
+          <label class="radio-opt"><input type="radio" name="co-pago" value="efectivo" ${d.pago === "efectivo" ? "checked" : ""}> EFECTIVO/CONTRA-ENTREGA<span class="hint">Según zona: CABA y GBA (zona Banfield y alrededores). Se coordina por WhatsApp</span></label>
           <label class="radio-opt"><input type="radio" name="co-pago" value="transferencia" ${d.pago === "transferencia" ? "checked" : ""}> Transferencia<span class="hint">Te compartimos los datos al confirmar el pedido</span></label>
           <label class="radio-opt"><input type="radio" name="co-pago" value="mercadopago" ${d.pago === "mercadopago" ? "checked" : ""}> Mercado Pago<span class="hint">Pagás online con tarjeta, débito o efectivo (Rapipago/Pago Fácil)</span></label>
         </div>
@@ -611,8 +620,8 @@ function renderCartDrawer() {
       <div class="field">
         <label>Método de entrega *</label>
         <div class="radio-group">
-          <label class="radio-opt"><input type="radio" name="co-entrega" value="retiro" ${d.entrega === "retiro" ? "checked" : ""}> Retiro en el lugar (Banfield Centro)</label>
-          <label class="radio-opt"><input type="radio" name="co-entrega" value="domicilio" ${d.entrega === "domicilio" ? "checked" : ""}> Envío a domicilio</label>
+          <label class="radio-opt"><input type="radio" name="co-entrega" value="retiro" ${d.entrega === "retiro" ? "checked" : ""}> Retiro en el lugar (Banfield Centro)<span class="hint">Sin costo</span></label>
+          <label class="radio-opt"><input type="radio" name="co-entrega" value="domicilio" ${d.entrega === "domicilio" ? "checked" : ""}> Envío a domicilio<span class="hint">Costo fijo según forma de pago, se suma al total</span></label>
         </div>
       </div>
       <div id="co-address-fields" ${d.entrega === "domicilio" ? "" : "hidden"}>
@@ -678,6 +687,8 @@ function renderCartDrawer() {
   } else if (cartStep === "summary") {
     backBtn.hidden = false;
     title.textContent = "Detalle de tu compra";
+    const envio = shippingCost(checkoutData.pago, checkoutData.entrega);
+    const grandTotal = cartTotal() + envio;
     body.innerHTML = `
       <div class="summary-status"><span>Estado del pago</span><span class="pill warn">Pendiente</span></div>
       ${lines.map(l => `
@@ -686,9 +697,15 @@ function renderCartDrawer() {
           <div class="info"><div class="t">${escapeHtml(l.item.title)}</div><div class="c">${escapeHtml(l.item.category || "")}</div></div>
           <div class="amt">${fmtARS(l.item.price * l.qty)}</div>
         </div>`).join("")}
+      ${envio > 0 ? `
+        <div class="summary-line">
+          <span class="qty">1</span>
+          <div class="info"><div class="t">Envío a domicilio</div></div>
+          <div class="amt">${fmtARS(envio)}</div>
+        </div>` : ""}
       <div class="summary-buyer">
         <div><b>${escapeHtml(checkoutData.nombre)}</b> · ${checkoutData.telefono}</div>
-        <div>${pagoLabel(checkoutData.pago)} · ${checkoutData.entrega === "retiro" ? "Retiro en el lugar (Banfield Centro)" : "Envío a domicilio"}</div>
+        <div>${pagoLabel(checkoutData.pago)} · ${checkoutData.entrega === "retiro" ? "Retiro en el lugar (Banfield Centro) · Sin costo" : "Envío a domicilio"}</div>
         ${checkoutData.entrega === "domicilio" ? `<div>${escapeHtml(checkoutData.entreCalles)}, ${escapeHtml(checkoutData.localidad)}, ${escapeHtml(checkoutData.provincia)} (${escapeHtml(checkoutData.cp)})</div>` : ""}
       </div>
       ${checkoutData.pago === "transferencia" && settings.transferMessage ? `
@@ -699,7 +716,7 @@ function renderCartDrawer() {
       </div>` : ""}`;
     const isMP = checkoutData.pago === "mercadopago";
     foot.innerHTML = `
-      <div class="total-row"><span>Total estimado</span><span>${fmtARS(cartTotal())}</span></div>
+      <div class="total-row"><span>Total estimado</span><span>${fmtARS(grandTotal)}</span></div>
       ${isMP
         ? `<button type="button" id="mp-btn" class="wa-btn">Pagar con Mercado Pago 💳</button>`
         : `<a id="wa-btn" class="wa-btn" href="${waOrderLink()}" target="_blank" rel="noopener">${checkoutData.pago === "transferencia" ? "PAGO SEGURO 🔒" : "Completar pedido en WhatsApp"}</a>`}`;
@@ -718,7 +735,7 @@ function renderCartDrawer() {
     function trackPurchase() {
       trackMeta("Purchase", {
         content_ids: lines.map(l => l.item.id), content_type: "product",
-        num_items: cartCount(), value: cartTotal(), currency: "ARS"
+        num_items: cartCount(), value: grandTotal, currency: "ARS"
       });
     }
     function resetCartAndClose(msg) {
@@ -745,14 +762,16 @@ function renderCartDrawer() {
         // El pedido queda registrado ANTES de ir a Mercado Pago (estado
         // "pendiente de pago") — así, aunque el cliente abandone el pago,
         // el panel ya tiene el registro del intento.
-        const orderId = await submitOrder(lines, { ...checkoutData }, cartTotal());
+        const orderId = await submitOrder(lines, { ...checkoutData }, grandTotal, envio);
         try {
+          const mpItems = lines.map(l => ({ id: l.item.id, title: l.item.title, price: l.item.price, qty: l.qty }));
+          if (envio > 0) mpItems.push({ id: "envio", title: "Envío a domicilio", price: envio, qty: 1 });
           const res = await fetch(`${MP_FUNCTION_ENDPOINT}/api/create-preference`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               orderId,
-              items: lines.map(l => ({ id: l.item.id, title: l.item.title, price: l.item.price, qty: l.qty })),
+              items: mpItems,
               buyer: { nombre: checkoutData.nombre, telefono: checkoutData.telefono },
             }),
           });
@@ -771,10 +790,10 @@ function renderCartDrawer() {
       $("#wa-btn").onclick = () => {
         // El pedido queda registrado en el panel apenas el cliente confirma acá,
         // independientemente de que después llegue o no a mandar el WhatsApp.
-        submitOrder(lines, { ...checkoutData }, cartTotal());
+        submitOrder(lines, { ...checkoutData }, grandTotal, envio);
         trackMeta("Contact", {
           content_ids: lines.map(l => l.item.id), content_type: "product",
-          num_items: cartCount(), value: cartTotal(), currency: "ARS"
+          num_items: cartCount(), value: grandTotal, currency: "ARS"
         });
         trackPurchase();
         resetCartAndClose("¡Pedido enviado!");
@@ -793,9 +812,11 @@ function waOrderLink() {
   const lines = cartLines();
   if (!number) return "#";
   const d = checkoutData;
+  const envio = shippingCost(d.pago, d.entrega);
   let msg = `Hola! Quiero hacer este pedido de ${settings.brand || "Primera Mano"}:\n\n`;
   lines.forEach(l => { msg += `• ${l.item.title} x${l.qty} — ${fmtARS(l.item.price * l.qty)}\n`; });
-  msg += `\nTotal: ${fmtARS(cartTotal())}\n\n`;
+  if (envio > 0) msg += `• Envío a domicilio — ${fmtARS(envio)}\n`;
+  msg += `\nTotal: ${fmtARS(cartTotal() + envio)}\n\n`;
   msg += `Nombre: ${d.nombre}\n`;
   msg += `Forma de pago: ${pagoLabel(d.pago)}\n`;
   msg += `Entrega: ${d.entrega === "retiro" ? "Retiro en el lugar (Banfield Centro)" : "Envío a domicilio"}\n`;
@@ -818,11 +839,12 @@ function waOrderLink() {
 // registrado aunque el cliente no llegue a apretar "enviar" en WhatsApp.
 // Si por lo que sea falla (sin internet, etc.) no bloquea ni rompe el envío
 // del pedido por WhatsApp — solo se pierde el registro interno de ese pedido.
-async function submitOrder(lines, d, total) {
+async function submitOrder(lines, d, total, envio) {
   try {
     const ref = await addDoc(collection(db, "orders"), {
       items: lines.map(l => ({ id: l.item.id, title: l.item.title, price: l.item.price, qty: l.qty })),
       total,
+      envio: envio || 0,
       nombre: d.nombre,
       telefono: d.telefono,
       dni: d.dni || "",
@@ -888,7 +910,7 @@ function renderAdminOrders() {
         </div>
         <div class="aor-items">${items}</div>
         <div class="aor-meta">
-          ${pagoLabel(o.pago)} · ${dirLinea}
+          ${pagoLabel(o.pago)} · ${dirLinea}${o.envio ? ` · Envío: ${fmtARS(o.envio)}` : ""}
           ${waNum ? ` · <a href="https://wa.me/${waNum}" target="_blank" rel="noopener">${escapeHtml(o.telefono)}</a>` : ""}
         </div>
         <div class="aor-foot">
