@@ -1028,6 +1028,7 @@ async function loadStaticProducts(attempt = 1) {
     renderGrid();
     renderCart();
     updateTrustCount();
+    openProductFromUrl();
   } catch (err) {
     console.error("static products load", err);
     if (attempt < 4) {
@@ -1036,6 +1037,17 @@ async function loadStaticProducts(attempt = 1) {
   }
 }
 loadStaticProducts();
+
+// Deep-link a un producto puntual: ?p=ID en la URL abre directo su modal.
+// Necesario para que el feed de productos de Meta Commerce Manager pueda
+// linkear a cada producto puntual (Meta exige un "link" funcional por item
+// para catálogo dinámico / retargeting de productos vistos).
+function openProductFromUrl() {
+  try {
+    const id = new URLSearchParams(location.search).get("p");
+    if (id && products[id]) openProductModal(id);
+  } catch (e) {}
+}
 
 // La config del catálogo (logo, portada, nombre, whatsapp, colores) vive en
 // data/settings.json, adentro del repo — un archivo estático normal, sin
