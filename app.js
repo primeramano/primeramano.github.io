@@ -703,6 +703,17 @@ function renderCartDrawer() {
         content_ids: lines.map(l => l.item.id), content_type: "product",
         num_items: cartCount(), value: cartTotal(), currency: "ARS"
       });
+      // Además de "Contact" (que ya se usaba como señal principal), se manda
+      // también "Purchase" en este mismo momento — es la señal más fuerte que
+      // entiende Meta para optimizar campañas por resultado real de venta.
+      // Se dispara acá (al confirmar el pedido) y no recién cuando se marca
+      // "Entregado" en el panel, porque ese paso lo hace el admin desde su
+      // propio navegador — atribuírselo ahí ensuciaría el matching del pixel
+      // con los datos del cliente real.
+      trackMeta("Purchase", {
+        content_ids: lines.map(l => l.item.id), content_type: "product",
+        num_items: cartCount(), value: cartTotal(), currency: "ARS"
+      });
       setTimeout(() => {
         cart = {};
         saveCart();
