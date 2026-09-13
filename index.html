@@ -100,7 +100,18 @@ src="https://www.facebook.com/tr?id=1021991960884965&ev=PageView&noscript=1"
 <div class="back-to-home-btn" id="back-to-home" hidden>
   <button id="back-to-home-inner">← Volver al inicio</button>
 </div>
-<div class="result-count" id="result-count" hidden></div>
+<div class="grid-toolbar" id="grid-toolbar" hidden>
+  <div class="result-count" id="result-count"></div>
+  <div class="sort-wrap">
+    <label for="sort-select">Ordenar</label>
+    <select id="sort-select" aria-label="Ordenar productos">
+      <option value="relevancia">Relevancia</option>
+      <option value="vendidos">Más vendidos</option>
+      <option value="precio_asc">Precio: menor a mayor</option>
+      <option value="precio_desc">Precio: mayor a menor</option>
+    </select>
+  </div>
+</div>
 
 <!-- ================= HOME (category preview rows) ================= -->
 <div class="home-sections" id="home-sections"></div>
@@ -108,6 +119,9 @@ src="https://www.facebook.com/tr?id=1021991960884965&ev=PageView&noscript=1"
 <!-- ================= GRID ================= -->
 <main class="grid" id="grid" hidden></main>
 <div class="empty-state" id="empty-state" hidden>No encontramos productos con esa búsqueda.</div>
+
+<!-- ================= BACK TO TOP ================= -->
+<button class="back-to-top" id="back-to-top" aria-label="Volver arriba" hidden>↑</button>
 
 <!-- ================= FLOATING CART BAR ================= -->
 <div class="floating-cart" id="floating-cart" hidden>
@@ -181,6 +195,7 @@ src="https://www.facebook.com/tr?id=1021991960884965&ev=PageView&noscript=1"
 
   <!-- Pedidos tab -->
   <div class="admin-body" id="tab-pedidos" hidden>
+    <div class="bestsellers-summary" id="bestsellers-summary" hidden></div>
     <div class="orders-filter">
       <select id="orders-filter-estado">
         <option value="">Todos los estados</option>

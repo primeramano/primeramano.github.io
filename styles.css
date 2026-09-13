@@ -9,8 +9,11 @@
   --wa:#22c35e;
   --hiw-num:#FFD700;
   --hiw-num-text:#111111;
+  --gold:#C9A227;
+  --gold-light:#E4C765;
   --radius:14px;
   --shadow:0 1px 3px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.05);
+  --topbar-h:64px;
   font-family:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
 }
 *{box-sizing:border-box;}
@@ -131,31 +134,51 @@ input,select,textarea{font:inherit;}
 @media (max-width:720px){ .hiw-arrow{display:none;} .how-it-works{gap:8px;} .hiw-step{flex:0 1 100%;max-width:420px;} }
 
 /* ---------- Categories ---------- */
+/* Pegada justo debajo del header (que también es sticky), así la navegación
+   por categoría y la búsqueda quedan siempre a mano sin tener que volver a
+   scrollear arriba — clave con +500 productos en la grilla. */
 .cats-row{
   max-width:1180px;margin:0 auto;padding:16px 20px 4px;
   display:flex;align-items:center;gap:12px;
+  position:sticky;top:var(--topbar-h);z-index:39;
+  background:var(--bg);
 }
 .cats{
   flex:1;min-width:0;margin:0;padding:0;
   display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;
 }
 .cats::-webkit-scrollbar{display:none;}
-.cat-select-wrap{flex:none;}
+/* El <select> es solo el selector de categoría en mobile (ver media query
+   abajo) — en desktop las chips ya cubren lo mismo, así que se oculta para
+   no duplicar el control. */
+.cat-select-wrap{display:none;}
 #cat-select{
   padding:9px 30px 9px 14px;border-radius:999px;border:1px solid var(--border);
   background:var(--surface) url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="6"><path d="M0 0l5 6 5-6z" fill="%236b7075"/></svg>') no-repeat right 12px center;
   font-size:.85rem;font-weight:600;color:var(--text);appearance:none;-webkit-appearance:none;cursor:pointer;
 }
 #cat-select:focus{outline:2px solid var(--brand);outline-offset:1px;}
-/* En celular el scroller de chips ocupa mucho lugar al lado del desplegable
-   (que ya hace lo mismo) — se oculta y el desplegable queda como selector
-   principal de categoría, igual que el resto de la fila. */
 @media (max-width:560px){
   .cats{display:none;}
   .cats-row{padding-top:12px;}
-  .cat-select-wrap{flex:none;width:auto;}
+  .cat-select-wrap{display:flex;flex:none;width:auto;}
   #cat-select{font-size:.82rem;padding:8px 26px 8px 12px;}
 }
+
+/* ---------- Toolbar de resultados (cantidad + orden) ---------- */
+.grid-toolbar{
+  max-width:1180px;margin:10px auto 0;padding:0 20px;
+  display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+}
+.sort-wrap{display:flex;align-items:center;gap:8px;}
+.sort-wrap label{font-size:.8rem;color:var(--muted);font-weight:600;}
+.sort-wrap select{
+  padding:8px 28px 8px 12px;border-radius:999px;border:1px solid var(--border);
+  background:var(--surface) url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="6"><path d="M0 0l5 6 5-6z" fill="%23C9A227"/></svg>') no-repeat right 12px center;
+  font-size:.82rem;font-weight:700;color:var(--text);appearance:none;-webkit-appearance:none;cursor:pointer;
+}
+.sort-wrap select:focus{outline:2px solid var(--gold);outline-offset:1px;}
+.sort-wrap select:hover{border-color:var(--gold);}
 .cat-chip{
   flex:none;padding:8px 15px;border-radius:999px;border:1px solid var(--border);
   background:var(--surface);font-size:.85rem;font-weight:600;color:var(--muted);
@@ -164,7 +187,7 @@ input,select,textarea{font:inherit;}
 .cat-chip.active{background:var(--brand);color:#fff;border-color:var(--brand);}
 
 /* ---------- Grid ---------- */
-.result-count{max-width:1180px;margin:14px auto 0;padding:0 20px;color:var(--muted);font-size:.85rem;}
+.result-count{color:var(--muted);font-size:.85rem;}
 .grid{
   max-width:1180px;margin:0 auto;padding:12px 20px 80px;
   display:grid;gap:16px;
@@ -183,6 +206,11 @@ input,select,textarea{font:inherit;}
   border:none;width:28px;height:28px;border-radius:8px;font-size:.85rem;
   display:flex;align-items:center;justify-content:center;
 }
+.bestseller-badge{
+  position:absolute;top:6px;left:6px;background:linear-gradient(135deg,var(--gold-light),var(--gold));
+  color:#1a1400;font-size:.66rem;font-weight:800;padding:4px 8px;border-radius:999px;
+  box-shadow:0 2px 6px rgba(0,0,0,.25);letter-spacing:.01em;
+}
 .card .body{padding:10px 12px 12px;display:flex;flex-direction:column;gap:6px;flex:1;}
 .card .cat{font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;color:var(--brand);font-weight:700;}
 .card h3{font-size:.86rem;font-weight:600;margin:0;line-height:1.3;cursor:pointer;}
@@ -197,6 +225,7 @@ input,select,textarea{font:inherit;}
   font-size:.82rem;font-weight:700;padding:0 10px;height:32px;white-space:nowrap;
 }
 .add-btn:active{background:var(--brand-dark);}
+.add-btn.just-added{background:var(--gold);color:#1a1400;transition:background .15s;}
 /* En tarjetas angostas (celular) el stepper y el botón nunca se amontonan ni se cortan:
    el stepper ocupa su fila completa y "Agregar" pasa a la siguiente, ambos a ancho completo. */
 @media (max-width:480px){
@@ -245,6 +274,16 @@ input,select,textarea{font:inherit;}
 }
 .back-to-home-btn button:hover{color:var(--brand);}
 
+/* ---------- Back to top ---------- */
+.back-to-top{
+  position:fixed;right:18px;bottom:24px;z-index:65;
+  width:42px;height:42px;border-radius:50%;border:1px solid var(--border);
+  background:var(--surface);color:var(--text);font-size:1.1rem;font-weight:700;
+  box-shadow:0 6px 18px rgba(0,0,0,.15);transition:opacity .15s, transform .15s;
+}
+.back-to-top:hover{transform:translateY(-2px);}
+@media (max-width:600px){.back-to-top{bottom:76px;right:14px;width:38px;height:38px;}}
+
 /* ---------- Floating cart bar ---------- */
 .floating-cart{
   position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:70;
@@ -254,16 +293,28 @@ input,select,textarea{font:inherit;}
   .floating-cart{bottom:76px;}
 }
 @keyframes fc-in{from{opacity:0;transform:translateX(-50%) translateY(10px);}to{opacity:1;transform:translateX(-50%) translateY(0);}}
+/* Negro con borde y detalle dorado — combina con el logo de la marca en vez
+   del negro plano genérico que tenía antes. */
 .floating-cart button{
-  display:flex;align-items:center;gap:10px;background:var(--text);color:#fff;
-  border:none;border-radius:999px;padding:12px 18px 12px 16px;
-  box-shadow:0 8px 24px rgba(0,0,0,.25);font-weight:700;font-size:.88rem;
+  display:flex;align-items:center;gap:10px;
+  background:linear-gradient(135deg,#1c1c1c,#000);color:#fff;
+  border:1px solid rgba(201,162,39,.55);border-radius:999px;padding:12px 18px 12px 16px;
+  box-shadow:0 8px 24px rgba(0,0,0,.35),0 0 0 1px rgba(201,162,39,.1) inset;
+  font-weight:700;font-size:.88rem;transition:transform .15s;
 }
-.floating-cart .fc-icon{font-size:1.05rem;}
-.floating-cart .fc-label{opacity:.75;font-weight:600;}
-.floating-cart .fc-count{background:rgba(255,255,255,.15);padding:3px 9px;border-radius:999px;font-size:.78rem;}
-.floating-cart .fc-total{color:var(--brand);}
+.floating-cart button:hover{transform:translateY(-1px);}
+.floating-cart .fc-icon{font-size:1.05rem;color:var(--gold-light);}
+.floating-cart .fc-label{opacity:.8;font-weight:600;}
+.floating-cart .fc-count{background:rgba(201,162,39,.18);padding:3px 9px;border-radius:999px;font-size:.78rem;}
+.floating-cart .fc-total{color:var(--gold-light);}
 @media (max-width:480px){.floating-cart .fc-label{display:none;}}
+/* Pulso corto cuando se suma un producto — refuerza que la acción "prendió". */
+.floating-cart.fc-pulse button{animation:fc-pulse .45s ease;}
+@keyframes fc-pulse{
+  0%{transform:scale(1);}
+  35%{transform:scale(1.08);box-shadow:0 8px 28px rgba(201,162,39,.45),0 0 0 1px rgba(201,162,39,.3) inset;}
+  100%{transform:scale(1);}
+}
 
 /* ---------- Cart drawer ---------- */
 .drawer-back{border:none;background:none;font-size:1.2rem;color:var(--text);margin-right:4px;padding:4px;}
@@ -411,6 +462,17 @@ a.wa-btn{background:#25D366;}
 .pill{display:inline-flex;align-items:center;gap:5px;font-size:.72rem;font-weight:700;padding:4px 9px;border-radius:999px;}
 .pill.ok{background:#e7f7ee;color:#1f8a4c;}
 .pill.warn{background:#fdeeee;color:#c0392b;}
+
+.bestsellers-summary{
+  margin-bottom:16px;padding:12px 14px;border-radius:12px;
+  background:linear-gradient(135deg,#1c1c1c,#000);color:#fff;
+}
+.bestsellers-title{font-size:.78rem;font-weight:700;color:var(--gold-light);margin-bottom:8px;}
+.bestsellers-row{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:.82rem;border-top:1px solid rgba(255,255,255,.08);}
+.bestsellers-row:first-child{border-top:none;}
+.bs-rank{flex:none;width:18px;height:18px;border-radius:50%;background:var(--gold);color:#1a1400;font-size:.68rem;font-weight:800;display:flex;align-items:center;justify-content:center;}
+.bs-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.bs-count{flex:none;color:var(--gold-light);font-weight:700;font-size:.78rem;}
 
 .orders-filter{margin-bottom:12px;}
 .orders-filter select{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface);font-size:.85rem;}

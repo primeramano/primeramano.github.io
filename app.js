@@ -11,7 +11,7 @@
 // ================================================================
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, collection, addDoc, doc, updateDoc, query, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, addDoc, doc, updateDoc, setDoc, getDocs, increment, query, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { firebaseConfig, ADMIN_EMAILS } from "./firebase-config.js";
 
 const fbApp = initializeApp(firebaseConfig);
@@ -200,6 +200,18 @@ let cart = {};             // id -> qty
 let isAdmin = false;
 let activeCategory = "__home__"; // "__home__" = portada con secciones por categoría
 let searchTerm = "";
+let sortMode = "relevancia"; // "relevancia" | "vendidos" | "precio_asc" | "precio_desc"
+let topSellerIds = new Set(); // top 3 productos con más ventas confirmadas (badge "Más vendido")
+// Acceso admin oculto: el header público no muestra nada de esto. Se activa
+// UNA sola vez visitando la página con ?admin=1 (te lo dejamos guardado en
+// este navegador para las próximas veces) y desde ahí aparece el botón de
+// siempre ("Ingresar" / "Editar catálogo").
+const ADMIN_MODE_KEY = "pm_admin_mode_v1";
+let showAdminUI = localStorage.getItem(ADMIN_MODE_KEY) === "1";
+if (new URLSearchParams(location.search).get("admin") === "1") {
+  localStorage.setItem(ADMIN_MODE_KEY, "1");
+  showAdminUI = true;
+}
 let editingProductId = null; // null = new product
 const MAX_PRODUCT_PHOTOS = 12;
 let pendingImages = [];       // base64 data-URLs, being edited for the current product (up to MAX_PRODUCT_PHOTOS)
@@ -394,11 +406,24 @@ function renderCats() {
 // ---------- Grid ----------
 function filteredProducts() {
   const term = searchTerm.trim().toLowerCase();
-  return Object.values(products).filter(p => {
+  const list = Object.values(products).filter(p => {
     if (activeCategory !== "__all__" && activeCategory !== "__home__" && p.category !== activeCategory) return false;
     if (term && !(p.title || "").toLowerCase().includes(term)) return false;
     return true;
   });
+  if (sortMode === "vendidos") list.sort((a, b) => (b.ventas || 0) - (a.ventas || 0));
+  else if (sortMode === "precio_asc") list.sort((a, b) => (a.price || 0) - (b.price || 0));
+  else if (sortMode === "precio_desc") list.sort((a, b) => (b.price || 0) - (a.price || 0));
+  return list;
+}
+// Recalcula qué productos son "Más vendido" (top 3, con al menos 1 venta
+// confirmada) para mostrarles el badge en la tarjeta — prueba social simple.
+function recomputeTopSellers() {
+  const ranked = Object.values(products)
+    .filter(p => (p.ventas || 0) > 0)
+    .sort((a, b) => (b.ventas || 0) - (a.ventas || 0))
+    .slice(0, 3);
+  topSellerIds = new Set(ranked.map(p => p.id));
 }
 // Productos agrupados por categoría para la portada, con una vista previa de N.
 function categorySections(previewCount = 6) {
@@ -416,6 +441,7 @@ function cardHTML(p, priority) {
     <div class="card" data-id="${p.id}">
       <div class="thumb-wrap" data-open="1">
         <img src="${p.img}" alt="${escapeAttr(p.title)}" ${loadAttrs} decoding="async">
+        ${topSellerIds.has(p.id) ? `<span class="bestseller-badge">🔥 Más vendido</span>` : ""}
         ${isAdmin ? `<button class="admin-edit-mini" data-edit="${p.id}">✎</button>` : ""}
       </div>
       <div class="body">
@@ -449,6 +475,15 @@ function wireCard(card) {
     addToCart(id, localQty);
     localQty = 1;
     stepper.querySelector("span").textContent = 1;
+    const addBtn = card.querySelector("[data-add]");
+    const original = addBtn.textContent;
+    addBtn.textContent = "✓ Agregado";
+    addBtn.classList.add("just-added");
+    setTimeout(() => { addBtn.textContent = original; addBtn.classList.remove("just-added"); }, 900);
+    const fc = $("#floating-cart");
+    fc.classList.remove("fc-pulse");
+    void fc.offsetWidth; // reinicia la animación aunque se clickee seguido
+    fc.classList.add("fc-pulse");
   };
   card.querySelectorAll("[data-open]").forEach(el => {
     el.onclick = () => openProductModal(id);
@@ -466,7 +501,7 @@ function renderGrid() {
   if (showHome) {
     grid.hidden = true;
     $("#empty-state").hidden = true;
-    $("#result-count").hidden = true;
+    $("#grid-toolbar").hidden = true;
     backBtn.hidden = true;
     homeEl.hidden = false;
     renderHomeSections();
@@ -475,7 +510,7 @@ function renderGrid() {
 
   homeEl.hidden = true;
   grid.hidden = false;
-  $("#result-count").hidden = false;
+  $("#grid-toolbar").hidden = false;
   backBtn.hidden = false;
 
   const list = filteredProducts();
@@ -948,8 +983,38 @@ function renderAdminOrders() {
           toast("El pedido se marcó Entregado pero no se pudo volcar a la planilla — reintentá cambiando el estado", "error");
         }
       }
+      // Suma las unidades del pedido al contador de "más vendidos" — una sola
+      // vez por pedido (mismo patrón que sheetSynced, con ventasSynced).
+      if (newEstado === "entregado" && order && !order.ventasSynced) {
+        await registrarVentasDePedido(order);
+        updateDoc(doc(db, "orders", sel.dataset.id), { ventasSynced: true }).catch(() => {});
+      }
     };
   });
+  renderBestsellers();
+}
+function renderBestsellers() {
+  const box = $("#bestsellers-summary");
+  if (!box) return;
+  const ranked = Object.values(products)
+    .filter(p => (p.ventas || 0) > 0)
+    .sort((a, b) => (b.ventas || 0) - (a.ventas || 0))
+    .slice(0, 5);
+  if (ranked.length === 0) {
+    box.hidden = true;
+    return;
+  }
+  box.hidden = false;
+  box.innerHTML = `
+    <div class="bestsellers-title">🏆 Más vendidos (unidades entregadas)</div>
+    <div class="bestsellers-list">
+      ${ranked.map((p, i) => `
+        <div class="bestsellers-row">
+          <span class="bs-rank">${i + 1}</span>
+          <span class="bs-title">${escapeHtml(p.title || "")}</span>
+          <span class="bs-count">${p.ventas} un.</span>
+        </div>`).join("")}
+    </div>`;
 }
 if ($("#orders-filter-estado")) {
   $("#orders-filter-estado").onchange = (e) => { ordersFilterEstado = e.target.value; renderAdminOrders(); };
@@ -1008,6 +1073,11 @@ function closeProductModal() { $("#pmodal-overlay").classList.remove("open"); }
 // ================================================================
 function renderAuthSlot() {
   const slot = $("#auth-slot");
+  if (!showAdminUI) {
+    // Header público: nadie ve login ni candado. Se activa con ?admin=1.
+    slot.innerHTML = "";
+    return;
+  }
   if (!fbUser) {
     // Nadie logueado: única opción es iniciar sesión con Google.
     slot.innerHTML = `<button class="admin-toggle off" id="admin-login-btn" title="Iniciar sesión con Google">🔑 Ingresar</button>`;
@@ -1084,6 +1154,14 @@ function signOutAdmin() {
 renderAuthSlot(); // estado inicial ("Ingresar") mientras Firebase resuelve la sesión
 onAuthStateChanged(auth, async (user) => {
   fbUser = user;
+  if (!showAdminUI) {
+    // Header público: ni siquiera se chequea si sos admin, así nunca aparece
+    // un prompt de token de golpe navegando como cliente normal. Solo se
+    // evalúa esto cuando entraste una vez por ?admin=1.
+    isAdmin = false;
+    renderAuthSlot();
+    return;
+  }
   const email = (user && user.email || "").toLowerCase();
   if (user && ADMIN_EMAILS.map(e => e.toLowerCase()).includes(email)) {
     await ensureGhAccess();
@@ -1119,6 +1197,7 @@ async function loadStaticProducts(attempt = 1) {
     renderCart();
     updateTrustCount();
     openProductFromUrl();
+    loadSalesStats();
   } catch (err) {
     console.error("static products load", err);
     if (attempt < 4) {
@@ -1137,6 +1216,49 @@ function openProductFromUrl() {
     const id = new URLSearchParams(location.search).get("p");
     if (id && products[id]) openProductModal(id);
   } catch (e) {}
+}
+
+// ================================================================
+// ESTADÍSTICAS DE VENTAS (más vendidos)
+// ================================================================
+// Cada producto "vendido" (pedido marcado Entregado por el admin) suma sus
+// unidades acá — un doc por producto en Firestore, colección "products"
+// (lectura pública, escritura solo admin, ya habilitado en firestore.rules).
+// Es independiente de data/products.json: no toca GitHub, no genera commits,
+// se actualiza al instante. Sirve para el filtro "Más vendidos" y el badge
+// 🔥 en la tarjeta.
+async function loadSalesStats() {
+  try {
+    const snap = await getDocs(collection(db, "products"));
+    snap.forEach(d => {
+      const v = d.data();
+      if (products[d.id]) products[d.id].ventas = v.ventas || 0;
+    });
+    recomputeTopSellers();
+    renderGrid();
+    renderHomeSections();
+  } catch (e) {
+    console.error("No se pudieron cargar las estadísticas de ventas", e);
+  }
+}
+
+// Se llama una vez por pedido, al marcarlo Entregado (ver renderAdminOrders).
+// Suma las unidades de cada item al contador de ventas de ese producto.
+async function registrarVentasDePedido(order) {
+  const items = order.items || [];
+  for (const it of items) {
+    if (!it.id || !it.qty) continue;
+    try {
+      await setDoc(doc(db, "products", it.id), { ventas: increment(it.qty) }, { merge: true });
+      if (products[it.id]) products[it.id].ventas = (products[it.id].ventas || 0) + it.qty;
+    } catch (e) {
+      console.error("No se pudo sumar la venta de " + it.id, e);
+    }
+  }
+  recomputeTopSellers();
+  renderGrid();
+  renderHomeSections();
+  renderBestsellers();
 }
 
 // La config del catálogo (logo, portada, nombre, whatsapp, colores) vive en
@@ -1442,6 +1564,30 @@ $("#search-input").oninput = (e) => {
 };
 
 $("#back-to-home-inner").onclick = () => { searchTerm = ""; $("#search-input").value = ""; goToCategory("__home__"); };
+
+$("#sort-select").onchange = (e) => { sortMode = e.target.value; renderGrid(); };
+
+// La fila de categorías queda pegada justo debajo del header — se mide su
+// alto real (cambia entre mobile/desktop) y se lo pasa como variable CSS.
+function syncTopbarHeight() {
+  const h = document.querySelector(".topbar");
+  if (h) document.documentElement.style.setProperty("--topbar-h", h.getBoundingClientRect().height + "px");
+}
+syncTopbarHeight();
+window.addEventListener("resize", syncTopbarHeight);
+window.addEventListener("load", syncTopbarHeight);
+
+// Botón "volver arriba" — aparece después de scrollear, útil con +500
+// productos en la grilla.
+const backToTopBtn = $("#back-to-top");
+if (backToTopBtn) {
+  let __btVisible = false;
+  window.addEventListener("scroll", () => {
+    const show = window.scrollY > 700;
+    if (show !== __btVisible) { __btVisible = show; backToTopBtn.hidden = !show; }
+  }, { passive: true });
+  backToTopBtn.onclick = () => window.scrollTo({ top: 0, behavior: "smooth" });
+}
 
 $("#floating-cart-btn").onclick = () => openCartDrawer("items");
 $("#cart-close").onclick = closeCartDrawer;
