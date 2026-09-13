@@ -149,7 +149,7 @@ const SHEET_SYNC_SECRET = "715fcbc73369411944260f4c3b57a315";
 // la real una vez deployada — ver README de la integración. Mientras diga
 // "PENDIENTE_CONFIGURAR", el botón de Mercado Pago avisa que todavía no
 // está listo en vez de fallar en silencio.
-const MP_FUNCTION_ENDPOINT = "PENDIENTE_CONFIGURAR";
+const MP_FUNCTION_ENDPOINT = "https://mp-checkout-puce.vercel.app";
 
 async function pushOrderToSheet(order) {
   try {
