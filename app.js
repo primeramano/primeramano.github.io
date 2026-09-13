@@ -11,12 +11,19 @@
 // ================================================================
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, collection, addDoc, doc, updateDoc, setDoc, getDocs, increment, query, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { initializeFirestore, collection, addDoc, doc, updateDoc, setDoc, getDocs, increment, query, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { firebaseConfig, ADMIN_EMAILS } from "./firebase-config.js";
 
 const fbApp = initializeApp(firebaseConfig);
 const auth = getAuth(fbApp);
-const db = getFirestore(fbApp);
+// experimentalAutoDetectLongPolling: en redes con proxy/firewall estrictos
+// (bastante común en 4G corporativo, algunos routers, extensiones de
+// seguridad) el canal en tiempo real "WebChannel" que usa Firestore por
+// defecto falla y reintenta en loop sin parar — eso es lo que colgaba la
+// página con "ocurrió un problema" repetido. Con esto, Firestore detecta
+// solo si esa conexión no funciona bien y usa long-polling en su lugar,
+// sin loops de reconexión.
+const db = initializeFirestore(fbApp, { experimentalAutoDetectLongPolling: true, useFetchStreams: false });
 const googleProvider = new GoogleAuthProvider();
 let fbUser = null;
 
