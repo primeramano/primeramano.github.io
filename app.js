@@ -687,7 +687,7 @@ function renderCartDrawer() {
       </div>` : ""}`;
     foot.innerHTML = `
       <div class="total-row"><span>Total estimado</span><span>${fmtARS(cartTotal())}</span></div>
-      <a id="wa-btn" class="wa-btn" href="${waOrderLink()}" target="_blank" rel="noopener">Completar pedido en WhatsApp</a>`;
+      <a id="wa-btn" class="wa-btn" href="${waOrderLink()}" target="_blank" rel="noopener">${checkoutData.pago === "transferencia" ? "PAGO SEGURO 🔒" : "Completar pedido en WhatsApp"}</a>`;
     if ($("#transfer-copy-btn")) {
       $("#transfer-copy-btn").onclick = () => {
         navigator.clipboard.writeText(settings.transferMessage)
