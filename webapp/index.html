@@ -3,10 +3,32 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="facebook-domain-verification" content="j05u3qanuo14tbqv33bx6qq5duhvvc" />
 <title id="page-title">Primera Mano</title>
 <meta id="meta-desc" name="description" content="Catálogo de Primera Mano">
 <link id="favicon" rel="icon" href="data:,">
 <link rel="stylesheet" href="styles.css">
+<link rel="preconnect" href="https://pency-images.nyc3.digitaloceanspaces.com" crossorigin>
+<link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://connect.facebook.net" crossorigin>
+
+<!-- Meta Pixel Code -->
+<script>
+!function(f,b,e,v,n,t,s)
+{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+n.queue=[];t=b.createElement(e);t.async=!0;
+t.src=v;s=b.getElementsByTagName(e)[0];
+s.parentNode.insertBefore(t,s)}(window, document,'script',
+'https://connect.facebook.net/en_US/fbevents.js');
+fbq('init', '1021991960884965');
+fbq('track', 'PageView');
+</script>
+<noscript><img height="1" width="1" style="display:none"
+src="https://www.facebook.com/tr?id=1021991960884965&ev=PageView&noscript=1"
+/></noscript>
+<!-- End Meta Pixel Code -->
 </head>
 <body>
 
@@ -14,7 +36,6 @@
 <header class="topbar">
   <div class="topbar-inner">
     <div class="brand">
-      <img id="brand-logo" src="" alt="" hidden>
       <span class="brand-name" id="brand-name">Primera Mano</span>
     </div>
     <div class="search-wrap">
@@ -26,20 +47,81 @@
   </div>
 </header>
 
+<!-- ================= COVER BANNER ================= -->
+<div class="cover-banner" id="cover-banner" hidden>
+  <img id="cover-img" alt="">
+</div>
+
 <!-- ================= HERO ================= -->
 <section class="hero">
-  <h1 id="hero-title">Primera Mano</h1>
-  <p id="hero-desc">Catálogo de productos. Armá tu pedido y enviálo por WhatsApp.</p>
+  <a class="hero-wa-fab" id="hero-wa-btn" target="_blank" rel="noopener" aria-label="Escribinos por WhatsApp" hidden><svg viewBox="0 0 32 32" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M16.01 3C9.38 3 4 8.38 4 15.01c0 2.2.59 4.35 1.7 6.24L3 29l7.94-2.63a12 12 0 0 0 5.07 1.13h.01c6.63 0 12-5.38 12-12.01C28.02 8.38 22.64 3 16.01 3zm7.03 17.18c-.3.83-1.72 1.63-2.38 1.72-.6.09-1.36.13-2.2-.14-.5-.16-1.15-.37-1.98-.72-3.48-1.5-5.76-5-5.93-5.24-.17-.24-1.42-1.88-1.42-3.59 0-1.71.9-2.55 1.22-2.9.32-.34.7-.43.93-.43.23 0 .47.01.67.01.22.01.5-.08.79.6.29.7.98 2.4 1.06 2.57.09.18.15.39.03.63-.12.24-.18.39-.36.6-.18.21-.37.47-.53.63-.18.18-.36.37-.15.71.2.34.9 1.48 1.93 2.4 1.33 1.18 2.45 1.55 2.8 1.72.35.17.55.15.75-.09.2-.24.86-1 1.09-1.34.23-.34.46-.28.77-.17.31.11 1.98.94 2.32 1.11.34.17.56.25.65.38.08.13.08.75-.22 1.55z"/></svg></a>
+  <div class="hero-inner">
+    <div class="hero-top">
+      <img id="brand-logo" class="brand-avatar" src="" alt="" hidden>
+      <h1 id="hero-title">Primera Mano</h1>
+    </div>
+    <p id="hero-desc">Catálogo de productos. Armá tu pedido y enviálo por WhatsApp.</p>
+    <div class="trust-row">
+      <span class="trust-item">📦 <strong id="trust-count">+500</strong> productos</span>
+      <span class="trust-item">💬 Pedís directo por WhatsApp</span>
+      <span class="trust-item">🔒 Sin registro, sin vueltas</span>
+      <span class="trust-item">🚚 Envíos a todo el país</span>
+      <span class="trust-item">📅 Lun a Sáb · Mín. $40.000</span>
+    </div>
+  </div>
+</section>
+
+<!-- ================= HOW IT WORKS ================= -->
+<section class="how-it-works" id="how-it-works">
+  <div class="hiw-step">
+    <span class="hiw-num">1</span>
+    <div><strong>Elegí</strong><span>Mirá el catálogo por categoría o buscá lo que necesitás</span></div>
+  </div>
+  <div class="hiw-arrow">→</div>
+  <div class="hiw-step">
+    <span class="hiw-num">2</span>
+    <div><strong>Armá tu pedido</strong><span>Sumá productos y cantidades a tu carrito</span></div>
+  </div>
+  <div class="hiw-arrow">→</div>
+  <div class="hiw-step">
+    <span class="hiw-num">3</span>
+    <div><strong>Enviálo por WhatsApp</strong><span>Confirmamos y coordinamos la entrega</span></div>
+  </div>
 </section>
 
 <!-- ================= CATEGORIES ================= -->
-<nav class="cats" id="cats"></nav>
+<div class="cats-row">
+  <nav class="cats" id="cats"></nav>
+  <div class="cat-select-wrap">
+    <select id="cat-select" aria-label="Elegir categoría"></select>
+  </div>
+</div>
 
-<div class="result-count" id="result-count"></div>
+<div class="back-to-home-btn" id="back-to-home" hidden>
+  <button id="back-to-home-inner">← Volver al inicio</button>
+</div>
+<div class="grid-toolbar" id="grid-toolbar" hidden>
+  <div class="result-count" id="result-count"></div>
+  <div class="sort-wrap">
+    <label for="sort-select">Ordenar</label>
+    <select id="sort-select" aria-label="Ordenar productos">
+      <option value="relevancia">Relevancia</option>
+      <option value="vendidos">Más vendidos</option>
+      <option value="precio_asc">Precio: menor a mayor</option>
+      <option value="precio_desc">Precio: mayor a menor</option>
+    </select>
+  </div>
+</div>
+
+<!-- ================= HOME (category preview rows) ================= -->
+<div class="home-sections" id="home-sections"></div>
 
 <!-- ================= GRID ================= -->
-<main class="grid" id="grid"></main>
+<main class="grid" id="grid" hidden></main>
 <div class="empty-state" id="empty-state" hidden>No encontramos productos con esa búsqueda.</div>
+
+<!-- ================= BACK TO TOP ================= -->
+<button class="back-to-top" id="back-to-top" aria-label="Volver arriba" hidden>↑</button>
 
 <!-- ================= FLOATING CART BAR ================= -->
 <div class="floating-cart" id="floating-cart" hidden>
@@ -68,8 +150,8 @@
   <div class="pmodal" id="pmodal">
     <button class="pmodal-close" id="pmodal-close">✕</button>
     <div class="media">
-      <img id="pmodal-img" src="" alt="">
-      <div class="pmodal-thumbs" id="pmodal-thumbs" hidden></div>
+      <div class="pmodal-slider" id="pmodal-slider"></div>
+      <div class="pmodal-dots" id="pmodal-dots" hidden></div>
     </div>
     <div class="info">
       <span class="cat" id="pmodal-cat"></span>
@@ -93,6 +175,8 @@
   </div>
   <div class="admin-tabs">
     <button class="admin-tab active" data-tab="productos">Productos</button>
+    <button class="admin-tab" data-tab="pedidos">Pedidos</button>
+    <button class="admin-tab" data-tab="carritos">Carritos</button>
     <button class="admin-tab" data-tab="diseno">Diseño y datos</button>
   </div>
 
@@ -104,8 +188,40 @@
       <p id="seed-progress" style="font-size:.8rem;color:var(--muted);"></p>
     </div>
     <button class="btn btn-primary" id="new-product-btn" style="width:100%;margin-bottom:12px;">+ Agregar producto</button>
+    <button class="btn" id="migrate-images-btn" style="width:100%;margin-bottom:6px;">⚡ Optimizar fotos (mover a Storage)</button>
+    <p id="migrate-progress" hidden style="font-size:.8rem;color:var(--muted);margin:0 0 12px;"></p>
     <input class="admin-search" id="admin-search" type="text" placeholder="Buscar en tus productos...">
     <div id="admin-product-list"></div>
+  </div>
+
+  <!-- Pedidos tab -->
+  <div class="admin-body" id="tab-pedidos" hidden>
+    <div class="bestsellers-summary" id="bestsellers-summary" hidden></div>
+    <div class="orders-filter">
+      <select id="orders-filter-estado">
+        <option value="">Todos los estados</option>
+        <option value="nuevo">Nuevo</option>
+        <option value="en_proceso">En proceso</option>
+        <option value="entregado">Entregado</option>
+        <option value="cancelado">Cancelado</option>
+      </select>
+    </div>
+    <p id="orders-empty" style="font-size:.85rem;color:var(--muted);">Todavía no hay pedidos.</p>
+    <div id="admin-orders-list"></div>
+  </div>
+
+  <!-- Carritos tab -->
+  <div class="admin-body" id="tab-carritos" hidden>
+    <p class="field-hint" style="margin-top:0;">Carritos con productos agregados, aunque el visitante no haya llegado a confirmar el pedido — útil para ver qué se quedó "a mitad de camino".</p>
+    <div class="orders-filter">
+      <select id="carts-filter-estado">
+        <option value="">Todos</option>
+        <option value="activo">Activos (sin comprar)</option>
+        <option value="convertido">Convertidos en pedido</option>
+      </select>
+    </div>
+    <p id="carts-empty" style="font-size:.85rem;color:var(--muted);">Todavía no hay carritos con productos.</p>
+    <div id="admin-carts-list"></div>
   </div>
 
   <!-- Diseño tab -->
@@ -123,6 +239,11 @@
       <input type="text" id="cfg-whatsapp" placeholder="5491159436724">
     </div>
     <div class="field">
+      <label>Mensaje con los datos para transferir</label>
+      <textarea id="cfg-transfer-msg" rows="4" placeholder="Ej: Alias: primera.mano.mp&#10;CBU: 0000003100...&#10;Titular: Santiago Belfiore"></textarea>
+      <p class="field-hint">Se le muestra al cliente en el carrito apenas confirma sus datos de envío, si elige pagar por transferencia — y se incluye también en el mensaje de WhatsApp del pedido.</p>
+    </div>
+    <div class="field">
       <label>Logo</label>
       <div class="img-drop" id="drop-logo">Click para subir logo</div>
       <img class="img-preview" id="preview-logo" hidden>
@@ -133,6 +254,7 @@
       <div class="img-drop" id="drop-cover">Click para subir portada</div>
       <img class="img-preview" id="preview-cover" hidden>
       <input type="file" id="file-cover" accept="image/*" hidden>
+      <p class="field-hint">Recomendado: <strong>1600×500px</strong> (formato panorámico, relación 16:5). Con ese tamaño se ve nítida tanto en PC como en celular — la imagen siempre se muestra completa, nunca se recorta.</p>
     </div>
     <div class="field">
       <label>Color principal</label>
@@ -142,12 +264,34 @@
       </div>
     </div>
     <div class="field">
+      <label>Color de los números de "Cómo funciona" (1, 2, 3)</label>
+      <div class="color-row">
+        <input type="color" id="cfg-color-step" value="#FFD700">
+        <span id="cfg-color-step-hex" style="font-size:.85rem;color:var(--muted);">#FFD700</span>
+      </div>
+    </div>
+    <div class="field">
       <label>Color de fondo</label>
       <div class="color-row">
         <input type="color" id="cfg-color-bg" value="#f7f7f5">
         <span id="cfg-color-bg-hex" style="font-size:.85rem;color:var(--muted);">#f7f7f5</span>
       </div>
     </div>
+    <div class="field">
+      <label>Color de texto</label>
+      <div class="color-row">
+        <input type="color" id="cfg-color-text" value="#17181a">
+        <span id="cfg-color-text-hex" style="font-size:.85rem;color:var(--muted);">#17181a</span>
+      </div>
+    </div>
+    <div class="field">
+      <label>Color del botón de WhatsApp</label>
+      <div class="color-row">
+        <input type="color" id="cfg-color-wa" value="#22c35e">
+        <span id="cfg-color-wa-hex" style="font-size:.85rem;color:var(--muted);">#22c35e</span>
+      </div>
+    </div>
+    <p class="field-hint">Los cambios de color, logo y portada se ven al instante para todos los visitantes apenas guardás — no hace falta hacer nada más.</p>
     <button class="btn btn-primary" id="save-config-btn" style="width:100%;margin-top:6px;">Guardar cambios</button>
   </div>
 </aside>
@@ -160,7 +304,7 @@
       <h2 id="edit-title">Producto</h2>
       <div class="field">
         <label>Fotos (hasta 4)</label>
-        <div class="img-drop" id="drop-product">Click para subir fotos (hasta 4)</div>
+        <div class="img-drop" id="drop-product">Click para subir fotos (hasta 12)</div>
         <input type="file" id="file-product" accept="image/*" multiple hidden>
         <div class="photo-strip" id="photo-strip"></div>
       </div>
@@ -190,6 +334,20 @@
     </div>
   </div>
 </div>
+
+<!-- ================= FOOTER ================= -->
+<footer class="site-footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <span class="brand-name" id="footer-brand">Primera Mano</span>
+      <p id="footer-desc">Catálogo de productos. Armá tu pedido y enviálo por WhatsApp.</p>
+    </div>
+    <a class="footer-wa-btn" id="footer-wa-btn" target="_blank" rel="noopener">
+      <svg viewBox="0 0 32 32" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M16.01 3C9.38 3 4 8.38 4 15.01c0 2.2.59 4.35 1.7 6.24L3 29l7.94-2.63a12 12 0 0 0 5.07 1.13h.01c6.63 0 12-5.38 12-12.01C28.02 8.38 22.64 3 16.01 3zm7.03 17.18c-.3.83-1.72 1.63-2.38 1.72-.6.09-1.36.13-2.2-.14-.5-.16-1.15-.37-1.98-.72-3.48-1.5-5.76-5-5.93-5.24-.17-.24-1.42-1.88-1.42-3.59 0-1.71.9-2.55 1.22-2.9.32-.34.7-.43.93-.43.23 0 .47.01.67.01.22.01.5-.08.79.6.29.7.98 2.4 1.06 2.57.09.18.15.39.03.63-.12.24-.18.39-.36.6-.18.21-.37.47-.53.63-.18.18-.36.37-.15.71.2.34.9 1.48 1.93 2.4 1.33 1.18 2.45 1.55 2.8 1.72.35.17.55.15.75-.09.2-.24.86-1 1.09-1.34.23-.34.46-.28.77-.17.31.11 1.98.94 2.32 1.11.34.17.56.25.65.38.08.13.08.75-.22 1.55z"/></svg>
+      Escribinos por WhatsApp
+    </a>
+  </div>
+</footer>
 
 <div class="toast" id="toast"></div>
 

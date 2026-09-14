@@ -1,0 +1,64 @@
+rules_version = '2';
+
+// ============================================================
+// REGLAS DE SEGURIDAD DE FIRESTORE — Primera Mano
+//
+// Cómo usarlas: Firebase Console > Firestore Database >
+// pestaña "Reglas" > pegar esto entero, reemplazando lo que
+// haya > "Publicar".
+//
+// Qué hacen:
+//  - Cualquiera (sin login) puede LEER productos y la
+//    configuración del sitio -> el catálogo sigue siendo público.
+//  - Solo los emails listados en ADMIN_EMAILS pueden ESCRIBIR
+//    (crear, editar, borrar productos y cambiar la configuración).
+//    Esto se controla server-side, no solo en el navegador, así
+//    que aunque alguien mire el código no puede editar sin ser
+//    uno de esos emails.
+//  - Pedidos (orders): cualquier visitante puede CREAR un pedido
+//    (así queda registrado apenas confirma la compra en el sitio,
+//    aunque después no llegue a mandar el WhatsApp), pero nadie
+//    salvo el admin puede LEER, EDITAR o BORRAR pedidos — así un
+//    visitante no puede ver los datos de otros clientes.
+//
+// IMPORTANTE: si agregás o sacás administradores, actualizá la
+// lista ACÁ (en la función isAdmin) Y en firebase-config.js.
+// ============================================================
+
+function isAdmin() {
+  return request.auth != null &&
+    request.auth.token.email in [
+      'belfioresantiago@gmail.com'
+      // agregá más emails acá, separados por coma, si hace falta
+    ];
+}
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /settings/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /orders/{orderId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+
+    // Carritos (carts): cada visitante tiene un id anónimo guardado en su
+    // propio navegador, y su carrito se va actualizando ahí a medida que
+    // agrega/saca productos (no solo al confirmar el pedido, como orders).
+    // Por eso necesita permitir "update" además de "create" para cualquiera
+    // — pero solo el admin puede LEER la lista completa de carritos.
+    match /carts/{cartId} {
+      allow create, update: if true;
+      allow read, delete: if isAdmin();
+    }
+  }
+}
