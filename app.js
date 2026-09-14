@@ -10,7 +10,7 @@
 // decide quién puede VER el modo edición (nada de datos pasa por ahí).
 // ================================================================
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { initializeFirestore, collection, addDoc, doc, updateDoc, setDoc, getDocs, increment, query, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { firebaseConfig, ADMIN_EMAILS } from "./firebase-config.js";
 
@@ -1202,7 +1202,21 @@ function renderAuthSlot() {
   $("#admin-lock-btn").onclick = signOutAdmin;
 }
 
+// En celulares, signInWithPopup casi siempre falla (el navegador móvil
+// bloquea o no soporta bien el popup) — por eso en mobile se usa
+// signInWithRedirect, que manda a la página de Google y vuelve acá
+// solo. El resultado de esa vuelta se procesa en getRedirectResult()
+// más abajo. En compu se sigue usando el popup, que es más cómodo.
+const isMobileBrowser = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+
 function signInAdmin() {
+  if (isMobileBrowser) {
+    signInWithRedirect(auth, googleProvider).catch((e) => {
+      console.error(e);
+      toast("No se pudo iniciar sesión con Google", "error");
+    });
+    return;
+  }
   signInWithPopup(auth, googleProvider).catch((e) => {
     console.error(e);
     toast("No se pudo iniciar sesión con Google", "error");
@@ -1217,6 +1231,13 @@ function signOutAdmin() {
 // activar el modo edición. Cualquier otra persona que abra la página, o que
 // se loguee con otra cuenta, ve el catálogo normal, sin botón de editar.
 renderAuthSlot(); // estado inicial ("Ingresar") mientras Firebase resuelve la sesión
+// Al volver de Google (flujo signInWithRedirect en mobile), Firebase procesa
+// la sesión automáticamente vía onAuthStateChanged de abajo — esto solo
+// atrapa el error, si lo hay, para poder avisar en vez de fallar en silencio.
+getRedirectResult(auth).catch((e) => {
+  console.error("getRedirectResult", e);
+  toast("No se pudo iniciar sesión con Google", "error");
+});
 onAuthStateChanged(auth, async (user) => {
   fbUser = user;
   if (!showAdminUI) {
