@@ -419,33 +419,54 @@ function categoriesFromProducts() {
   const set = new Set(Object.values(products).map(p => p.category).filter(Boolean));
   return Array.from(set).sort((a, b) => a.localeCompare(b, "es"));
 }
-function goToCategory(cat) {
+// Cada categoría tiene su propio link (?cat=Nombre) — se puede copiar,
+// compartir por WhatsApp/Instagram/un anuncio, o abrir directo y cae
+// justo en esa categoría. Al navegar entre categorías la URL se actualiza
+// sola, así lo que ves arriba siempre es el link a donde estás parado.
+function categoryUrl(cat) {
+  const url = new URL(location.href);
+  url.search = "";
+  if (cat && cat !== "__home__") url.searchParams.set("cat", cat);
+  return url.pathname + url.search;
+}
+function goToCategory(cat, opts = {}) {
   activeCategory = cat;
   renderCats();
   renderGrid();
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  if (!opts.skipUrl) {
+    const url = categoryUrl(cat);
+    history.replaceState(null, "", url === location.pathname ? location.pathname : url);
+  }
+  if (!opts.skipScroll) window.scrollTo({ top: 0, behavior: "smooth" });
+}
+// ?cat=Nombre en la URL abre directo esa categoría — mismo mecanismo que
+// ?p=ID para productos puntuales (openProductFromUrl, más abajo).
+function openCategoryFromUrl() {
+  try {
+    const wanted = new URLSearchParams(location.search).get("cat");
+    if (!wanted) return;
+    const match = categoriesFromProducts().find(c => c.toLowerCase() === wanted.toLowerCase());
+    if (match) goToCategory(match, { skipUrl: true, skipScroll: true });
+  } catch (e) {}
+}
+// Crea un <a> real (con href copiable/compartible) para navegar a una
+// categoría, en vez de un <button> sin URL — así cada categoría tiene su
+// propio link dentro de la página.
+function catLink(cat, label) {
+  const a = document.createElement("a");
+  a.className = "cat-chip" + (activeCategory === cat ? " active" : "");
+  a.textContent = label;
+  a.href = categoryUrl(cat);
+  a.onclick = (e) => { e.preventDefault(); goToCategory(cat); };
+  return a;
 }
 function renderCats() {
   const cats = categoriesFromProducts();
   const wrap = $("#cats");
   wrap.innerHTML = "";
-  const homeChip = document.createElement("button");
-  homeChip.className = "cat-chip" + (activeCategory === "__home__" ? " active" : "");
-  homeChip.textContent = "Inicio";
-  homeChip.onclick = () => goToCategory("__home__");
-  wrap.appendChild(homeChip);
-  const allChip = document.createElement("button");
-  allChip.className = "cat-chip" + (activeCategory === "__all__" ? " active" : "");
-  allChip.textContent = "Todos";
-  allChip.onclick = () => goToCategory("__all__");
-  wrap.appendChild(allChip);
-  cats.forEach(c => {
-    const chip = document.createElement("button");
-    chip.className = "cat-chip" + (activeCategory === c ? " active" : "");
-    chip.textContent = c;
-    chip.onclick = () => goToCategory(c);
-    wrap.appendChild(chip);
-  });
+  wrap.appendChild(catLink("__home__", "Inicio"));
+  wrap.appendChild(catLink("__all__", "Todos"));
+  cats.forEach(c => wrap.appendChild(catLink(c, c)));
   // datalist for admin product category autocomplete
   const dl = $("#cat-list");
   dl.innerHTML = cats.map(c => `<option value="${c.replace(/"/g,'&quot;')}">`).join("");
@@ -607,17 +628,17 @@ function renderHomeSections() {
   homeEl.innerHTML = sections.map((s, sIdx) => `
     <section class="home-section">
       <div class="home-section-head">
-        <h2>${escapeHtml(s.cat)}</h2>
+        <h2><a class="cat-title-link" href="${escapeAttr(categoryUrl(s.cat))}" data-cat="${escapeAttr(s.cat)}">${escapeHtml(s.cat)}</a></h2>
         <div class="home-section-actions">
           <span class="count">${s.items.length} ${s.items.length === 1 ? "producto" : "productos"}</span>
-          ${s.items.length > s.preview.length ? `<button class="ver-todos-btn" data-cat="${escapeAttr(s.cat)}">Ver todos →</button>` : ""}
+          ${s.items.length > s.preview.length ? `<a class="ver-todos-btn" href="${escapeAttr(categoryUrl(s.cat))}" data-cat="${escapeAttr(s.cat)}">Ver todos →</a>` : ""}
         </div>
       </div>
       <div class="home-row">${s.preview.map((p, idx) => cardHTML(p, sIdx === 0 && idx < 6)).join("")}</div>
     </section>`).join("");
   homeEl.querySelectorAll(".card").forEach(wireCard);
-  homeEl.querySelectorAll(".ver-todos-btn").forEach(btn => {
-    btn.onclick = () => goToCategory(btn.dataset.cat);
+  homeEl.querySelectorAll(".ver-todos-btn, .cat-title-link").forEach(link => {
+    link.onclick = (e) => { e.preventDefault(); goToCategory(link.dataset.cat); };
   });
 }
 
@@ -1303,6 +1324,7 @@ async function loadStaticProducts(attempt = 1) {
     list.forEach(p => { next[p.id] = p; });
     products = next;
     dataLoaded = true;
+    openCategoryFromUrl(); // ?cat=Nombre en la URL: abre directo esa categoría
     renderCats();
     renderGrid();
     renderCart();
