@@ -614,6 +614,10 @@ function renderHomeSections() {
 }
 
 // ---------- Cart ----------
+// Pedido mínimo: por debajo de este monto no se puede avanzar a confirmar
+// el pedido — el carrito avisa cuánto falta para llegarlo.
+const MIN_ORDER = 40000;
+function minOrderMissing() { return Math.max(0, MIN_ORDER - cartTotal()); }
 function cartLines() {
   return Object.entries(cart).map(([id, qty]) => ({ item: products[id], qty })).filter(l => l.item && l.qty > 0);
 }
@@ -640,6 +644,16 @@ function renderCart() {
   fc.hidden = count === 0;
   $("#fc-count").textContent = count + (count === 1 ? " item" : " items");
   $("#fc-total").textContent = fmtARS(cartTotal());
+  const fcMinNote = $("#fc-min-note");
+  if (fcMinNote) {
+    const missing = minOrderMissing();
+    if (count > 0 && missing > 0) {
+      fcMinNote.hidden = false;
+      fcMinNote.textContent = `Faltan ${fmtARS(missing)} para el pedido mínimo`;
+    } else {
+      fcMinNote.hidden = true;
+    }
+  }
 
   renderCartDrawer();
 }
@@ -681,11 +695,14 @@ function renderCartDrawer() {
         btn.onclick = () => setQty(btn.closest(".cart-line").dataset.id, 0);
       });
     }
+    const missing = minOrderMissing();
+    const belowMin = lines.length > 0 && missing > 0;
     foot.innerHTML = `
+      ${belowMin ? `<div class="min-order-note">Te faltan <strong>${fmtARS(missing)}</strong> para llegar al pedido mínimo de ${fmtARS(MIN_ORDER)}</div>` : ""}
       <div class="total-row"><span>Total</span><span>${fmtARS(cartTotal())}</span></div>
-      <button class="wa-btn" id="cart-continue-btn" ${lines.length === 0 ? "disabled" : ""}>Continuar</button>`;
+      <button class="wa-btn" id="cart-continue-btn" ${(lines.length === 0 || belowMin) ? "disabled" : ""}>Continuar</button>`;
     $("#cart-continue-btn").onclick = () => {
-      if (cartLines().length === 0) return;
+      if (cartLines().length === 0 || minOrderMissing() > 0) return;
       trackMeta("InitiateCheckout", {
         content_ids: lines.map(l => l.item.id), content_type: "product",
         num_items: cartCount(), value: cartTotal(), currency: "ARS"

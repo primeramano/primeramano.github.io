@@ -312,6 +312,11 @@ input,select,textarea{font:inherit;}
 .floating-cart .fc-count{background:rgba(201,162,39,.18);padding:3px 9px;border-radius:999px;font-size:.78rem;}
 .floating-cart .fc-total{color:var(--gold-light);}
 @media (max-width:480px){.floating-cart .fc-label{display:none;}}
+.fc-min-note{
+  margin-top:6px;text-align:center;font-size:.72rem;font-weight:700;
+  color:#fff;background:#c0392b;padding:4px 10px;border-radius:999px;
+  box-shadow:0 4px 12px rgba(0,0,0,.25);
+}
 /* Pulso corto cuando se suma un producto — refuerza que la acción "prendió". */
 .floating-cart.fc-pulse button{animation:fc-pulse .45s ease;}
 @keyframes fc-pulse{
@@ -346,6 +351,11 @@ input,select,textarea{font:inherit;}
 .cart-line .remove{border:none;background:none;color:#c0392b;font-size:.78rem;text-decoration:underline;}
 .drawer-foot{padding:16px 20px;border-top:1px solid var(--border);}
 .total-row{display:flex;justify-content:space-between;font-weight:700;font-size:1rem;margin-bottom:12px;}
+.min-order-note{
+  background:#fdeeee;color:#c0392b;border:1px solid #f3c1bb;
+  border-radius:10px;padding:9px 12px;font-size:.82rem;line-height:1.4;
+  margin-bottom:12px;text-align:center;
+}
 .wa-btn{
   display:flex;align-items:center;justify-content:center;gap:8px;width:100%;
   background:#25D366;color:#fff;border:none;border-radius:999px;padding:13px;
