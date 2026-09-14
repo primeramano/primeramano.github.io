@@ -176,6 +176,7 @@ src="https://www.facebook.com/tr?id=1021991960884965&ev=PageView&noscript=1"
   <div class="admin-tabs">
     <button class="admin-tab active" data-tab="productos">Productos</button>
     <button class="admin-tab" data-tab="pedidos">Pedidos</button>
+    <button class="admin-tab" data-tab="carritos">Carritos</button>
     <button class="admin-tab" data-tab="diseno">Diseño y datos</button>
   </div>
 
@@ -207,6 +208,20 @@ src="https://www.facebook.com/tr?id=1021991960884965&ev=PageView&noscript=1"
     </div>
     <p id="orders-empty" style="font-size:.85rem;color:var(--muted);">Todavía no hay pedidos.</p>
     <div id="admin-orders-list"></div>
+  </div>
+
+  <!-- Carritos tab -->
+  <div class="admin-body" id="tab-carritos" hidden>
+    <p class="field-hint" style="margin-top:0;">Carritos con productos agregados, aunque el visitante no haya llegado a confirmar el pedido — útil para ver qué se quedó "a mitad de camino".</p>
+    <div class="orders-filter">
+      <select id="carts-filter-estado">
+        <option value="">Todos</option>
+        <option value="activo">Activos (sin comprar)</option>
+        <option value="convertido">Convertidos en pedido</option>
+      </select>
+    </div>
+    <p id="carts-empty" style="font-size:.85rem;color:var(--muted);">Todavía no hay carritos con productos.</p>
+    <div id="admin-carts-list"></div>
   </div>
 
   <!-- Diseño tab -->

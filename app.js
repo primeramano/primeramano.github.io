@@ -40,11 +40,6 @@ let unsubscribeOrders = null;
 const GH_OWNER = "primeramano";
 const GH_REPO = "primeramano.github.io";
 const GH_BRANCH = "main";
-const GH_TOKEN_KEY = "pm_gh_token";
-
-function getGhToken() { try { return localStorage.getItem(GH_TOKEN_KEY) || ""; } catch (e) { return ""; } }
-function setGhToken(t) { try { localStorage.setItem(GH_TOKEN_KEY, t); } catch (e) {} }
-function clearGhToken() { try { localStorage.removeItem(GH_TOKEN_KEY); } catch (e) {} }
 
 function b64EncodeUnicode(str) {
   return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (m, p1) => String.fromCharCode(parseInt(p1, 16))));
@@ -53,17 +48,56 @@ function b64DecodeUnicode(str) {
   return decodeURIComponent(atob(str).split("").map(c => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2)).join(""));
 }
 
+// Guardar productos/fotos/config = un commit directo a este repo con la API
+// de GitHub. Para eso hace falta un token de acceso personal (PAT) — se pide
+// una sola vez por dispositivo con un prompt() y se guarda en localStorage
+// de ESE navegador, nunca se manda a ningún servidor propio.
+const GH_TOKEN_KEY = "pm_gh_token_v1";
+function getGhToken() { return localStorage.getItem(GH_TOKEN_KEY) || ""; }
+function setGhToken(t) { localStorage.setItem(GH_TOKEN_KEY, t); }
+function clearGhToken() { localStorage.removeItem(GH_TOKEN_KEY); }
+
+async function verifyGhToken(token) {
+  const res = await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" },
+  });
+  return res.ok;
+}
+
+// Se llama apenas se detecta que la cuenta de Google logueada es admin. Si
+// ya hay un token guardado en este navegador, no pide nada. Si no hay, o el
+// que había dejó de funcionar, pide uno nuevo con un prompt().
+async function ensureGhAccess() {
+  let token = getGhToken();
+  if (token && (await verifyGhToken(token))) return true;
+  token = prompt(
+    "Para guardar cambios necesito un token de GitHub (una sola vez por dispositivo).\n\n" +
+    "Generalo en: github.com/settings/tokens → Fine-grained tokens → Generate new token\n" +
+    "Resource owner: " + GH_OWNER + "\n" +
+    "Repository access: Only select repositories → " + GH_REPO + "\n" +
+    "Permissions → Contents: Read and write\n\n" +
+    "Pegá acá el token:"
+  );
+  if (!token) return false;
+  const ok = await verifyGhToken(token);
+  if (!ok) { alert("Ese token no funcionó. Revisá que tenga acceso a " + GH_REPO + " con permiso Contents: Read and write."); return false; }
+  setGhToken(token);
+  return true;
+}
+
 async function ghRequest(path, opts = {}) {
   const token = getGhToken();
-  return fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}${path}`, {
-    ...opts,
+  if (!token) throw new Error("No hay token de GitHub guardado — volvé a iniciar sesión como admin.");
+  const res = await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}${path}`, {
+    method: opts.method || "GET",
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: "application/vnd.github+json",
       ...(opts.body ? { "Content-Type": "application/json" } : {}),
-      ...(opts.headers || {})
-    }
+    },
+    body: opts.body,
   });
+  return res;
 }
 
 async function ghGetJsonFile(path) {
@@ -185,11 +219,11 @@ async function pushOrderToSheet(order) {
 
 function githubErrorMessage(e) {
   const s = ((e && e.message) || "").toLowerCase();
-  if (s.includes("401") || s.includes("bad credentials")) {
-    return "No se guardó: tu token de administrador venció o es inválido. Volvé a activar el modo edición.";
+  if (s.includes("401") || s.includes("bad credentials") || s.includes("token de github")) {
+    return "No se guardó: tu token de GitHub venció o es inválido. Cerrá sesión y volvé a entrar para generar uno nuevo.";
   }
   if (s.includes("403") || s.includes("rate limit")) {
-    return "No se guardó: GitHub rechazó el pedido (permisos del token o límite momentáneo). Probá de nuevo en un minuto.";
+    return "No se guardó: el token no tiene permiso sobre este repo, o límite momentáneo de GitHub. Probá de nuevo en un minuto.";
   }
   if (s.includes("409") || s.includes("sha")) {
     return "No se guardó: alguien más (u otra pestaña) guardó un cambio justo antes. Recargá la página y probá de nuevo.";
@@ -228,6 +262,15 @@ let pendingCoverImage = null;
 
 try { cart = JSON.parse(localStorage.getItem("pm_cart_v1") || "{}"); } catch (e) { cart = {}; }
 
+// Identidad anónima persistida en este navegador — así el panel de admin
+// puede agrupar "este visitante agregó estos productos" sin pedir ningún
+// dato personal. No se manda a ningún lado hasta que el carrito tiene algo.
+let cartVisitorId = localStorage.getItem("pm_cart_visitor_v1");
+if (!cartVisitorId) {
+  cartVisitorId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2));
+  try { localStorage.setItem("pm_cart_visitor_v1", cartVisitorId); } catch (e) {}
+}
+
 let cartStep = "items"; // "items" | "form" | "summary"
 let checkoutData = { nombre: "", pago: "", entrega: "", entreCalles: "", localidad: "", provincia: "", cp: "", telefono: "", dni: "", notas: "" };
 
@@ -264,6 +307,37 @@ function toast(msg, kind = "ok") {
 }
 function saveCart() {
   try { localStorage.setItem("pm_cart_v1", JSON.stringify(cart)); } catch (e) {}
+  scheduleCartSync();
+}
+
+// Manda el carrito a Firestore (colección "carts") para que el admin pueda
+// ver, desde el celular, qué productos quedaron agregados aunque el
+// visitante no haya llegado a confirmar el pedido. Debounced para no
+// escribir en cada click de +/-, solo cuando el visitante deja de tocar el
+// carrito un rato.
+let _cartSyncTimer = null;
+function scheduleCartSync() {
+  clearTimeout(_cartSyncTimer);
+  _cartSyncTimer = setTimeout(syncCartToFirestore, 1500);
+}
+async function syncCartToFirestore() {
+  try {
+    const ids = Object.keys(cart).filter(id => cart[id] > 0);
+    const items = ids.map(id => {
+      const p = products[id];
+      return { id, title: p ? p.title : "(producto eliminado)", price: p ? p.price : 0, qty: cart[id] };
+    });
+    const total = items.reduce((s, it) => s + it.price * it.qty, 0);
+    if (items.length === 0) {
+      // Carrito vaciado (compró o borró todo): no hace falta seguir
+      // mostrándolo como "activo" en el panel.
+      await setDoc(doc(db, "carts", cartVisitorId), { items: [], total: 0, estado: "vacio", updatedAt: serverTimestamp() }, { merge: true });
+      return;
+    }
+    await setDoc(doc(db, "carts", cartVisitorId), {
+      items, total, estado: "activo", updatedAt: serverTimestamp(),
+    }, { merge: true });
+  } catch (e) { console.error("No se pudo sincronizar el carrito", e); }
 }
 
 // Si por lo que sea un pedido a GitHub se cuelga (sin internet, etc.), esto
@@ -910,6 +984,10 @@ async function submitOrder(lines, d, total, envio) {
       ...(d.pago === "mercadopago" ? { pagoEstado: "pendiente" } : {}),
       createdAt: serverTimestamp(),
     });
+    // Marca el carrito de este visitante como convertido — así en el panel
+    // de "Carritos" no aparece como abandonado un carrito que sí terminó en
+    // pedido.
+    setDoc(doc(db, "carts", cartVisitorId), { estado: "convertido", orderId: ref.id, updatedAt: serverTimestamp() }, { merge: true }).catch(() => {});
     return ref.id;
   } catch (e) {
     console.error("No se pudo registrar el pedido en el panel", e);
@@ -930,6 +1008,55 @@ function startOrdersListener() {
 function stopOrdersListener() {
   if (unsubscribeOrders) { unsubscribeOrders(); unsubscribeOrders = null; }
   orders = [];
+}
+
+// ---------- Carritos (admin) ----------
+let carts = [];
+let cartsFilterEstado = "";
+let unsubscribeCarts = null;
+function startCartsListener() {
+  if (unsubscribeCarts) return;
+  try {
+    const q = query(collection(db, "carts"), orderBy("updatedAt", "desc"));
+    unsubscribeCarts = onSnapshot(q, (snap) => {
+      carts = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(c => (c.items || []).length > 0);
+      renderAdminCarts();
+    }, (err) => console.error("carts listener", err));
+  } catch (e) { console.error(e); }
+}
+function stopCartsListener() {
+  if (unsubscribeCarts) { unsubscribeCarts(); unsubscribeCarts = null; }
+  carts = [];
+}
+function fmtCartDate(ts) {
+  try {
+    if (!ts || !ts.toDate) return "";
+    return ts.toDate().toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  } catch (e) { return ""; }
+}
+function renderAdminCarts() {
+  const wrap = $("#admin-carts-list");
+  const empty = $("#carts-empty");
+  if (!wrap) return;
+  const list = cartsFilterEstado ? carts.filter(c => (c.estado || "activo") === cartsFilterEstado) : carts.filter(c => c.estado !== "vacio");
+  empty.hidden = list.length > 0;
+  wrap.innerHTML = list.map(c => {
+    const items = (c.items || []).map(it => `${it.qty} x ${escapeHtml(it.title)}`).join("<br>");
+    const estadoLabel = c.estado === "convertido" ? "✔ Convertido en pedido" : "🛒 Activo (sin comprar)";
+    const estadoClass = c.estado === "convertido" ? "aor-total" : "aor-date";
+    return `
+      <div class="admin-order-row" data-id="${c.id}">
+        <div class="aor-head">
+          <b>Visitante ${escapeHtml(c.id.slice(0, 8))}</b>
+          <span class="${estadoClass}">${fmtCartDate(c.updatedAt)}</span>
+        </div>
+        <div class="aor-items">${items}</div>
+        <div class="aor-foot">
+          <span class="aor-total">${fmtARS(c.total || 0)}</span>
+          <span style="font-size:.8rem;color:var(--muted);">${estadoLabel}</span>
+        </div>
+      </div>`;
+  }).join("");
 }
 
 const ESTADO_LABELS = { nuevo: "Nuevo", en_proceso: "En proceso", entregado: "Entregado", cancelado: "Cancelado" };
@@ -1104,46 +1231,6 @@ function renderAuthSlot() {
   $("#admin-lock-btn").onclick = signOutAdmin;
 }
 
-// Verifica que el token guardado realmente tenga permiso de escritura sobre
-// este repositorio puntual (y no cualquier token robado o vencido).
-async function verifyGhToken() {
-  try {
-    const res = await ghRequest("");
-    if (!res.ok) return false;
-    const j = await res.json();
-    return !!(j.permissions && j.permissions.push);
-  } catch (e) { return false; }
-}
-
-// Se llama solo después de confirmar que el usuario logueado con Google es
-// el dueño del catálogo (ADMIN_EMAILS). Si ya hay un token de GitHub
-// guardado de antes, lo reutiliza en silencio; si no, lo pide UNA sola vez.
-async function ensureGhAccess() {
-  if (getGhToken()) {
-    const ok = await verifyGhToken();
-    if (ok) { isAdmin = true; return; }
-    clearGhToken();
-  }
-  const token = prompt(
-    "Pegá tu token de administrador de GitHub (se pide una sola vez en este navegador).\n\n" +
-    "Se crea en github.com → Settings → Developer settings → Fine-grained " +
-    "tokens, dándole permiso \"Contents: Read and write\" solo sobre el " +
-    "repositorio " + GH_OWNER + "/" + GH_REPO + "."
-  );
-  if (!token) { isAdmin = false; return; }
-  setGhToken(token.trim());
-  toast("Verificando token...");
-  const ok = await verifyGhToken();
-  if (ok) {
-    isAdmin = true;
-    toast("Modo edición activado");
-  } else {
-    clearGhToken();
-    isAdmin = false;
-    toast("Ese token no es válido o no tiene permiso de escritura sobre el repositorio", "error");
-  }
-}
-
 function signInAdmin() {
   signInWithPopup(auth, googleProvider).catch((e) => {
     console.error(e);
@@ -1170,12 +1257,10 @@ onAuthStateChanged(auth, async (user) => {
     return;
   }
   const email = (user && user.email || "").toLowerCase();
-  if (user && ADMIN_EMAILS.map(e => e.toLowerCase()).includes(email)) {
-    await ensureGhAccess();
-  } else {
-    isAdmin = false;
-  }
+  const emailIsAdmin = !!(user && ADMIN_EMAILS.map(e => e.toLowerCase()).includes(email));
+  isAdmin = emailIsAdmin && (await ensureGhAccess());
   if (isAdmin) startOrdersListener(); else stopOrdersListener();
+  if (!isAdmin) stopCartsListener();
   renderAuthSlot();
   renderGrid();
 });
@@ -1308,9 +1393,16 @@ $$(".admin-tab").forEach(tab => {
     tab.classList.add("active");
     $("#tab-productos").hidden = tab.dataset.tab !== "productos";
     $("#tab-pedidos").hidden = tab.dataset.tab !== "pedidos";
+    $("#tab-carritos").hidden = tab.dataset.tab !== "carritos";
     $("#tab-diseno").hidden = tab.dataset.tab !== "diseno";
     if (tab.dataset.tab === "pedidos") renderAdminOrders();
+    if (tab.dataset.tab === "carritos") { startCartsListener(); renderAdminCarts(); }
   };
+});
+
+$("#carts-filter-estado") && ($("#carts-filter-estado").onchange = (e) => {
+  cartsFilterEstado = e.target.value;
+  renderAdminCarts();
 });
 
 // ---------- Seed (first run only) ----------

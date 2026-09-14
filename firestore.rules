@@ -50,5 +50,15 @@ service cloud.firestore {
       allow create: if true;
       allow read, update, delete: if isAdmin();
     }
+
+    // Carritos (carts): cada visitante tiene un id anónimo guardado en su
+    // propio navegador, y su carrito se va actualizando ahí a medida que
+    // agrega/saca productos (no solo al confirmar el pedido, como orders).
+    // Por eso necesita permitir "update" además de "create" para cualquiera
+    // — pero solo el admin puede LEER la lista completa de carritos.
+    match /carts/{cartId} {
+      allow create, update: if true;
+      allow read, delete: if isAdmin();
+    }
   }
 }
