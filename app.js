@@ -419,33 +419,39 @@ function categoriesFromProducts() {
   const set = new Set(Object.values(products).map(p => p.category).filter(Boolean));
   return Array.from(set).sort((a, b) => a.localeCompare(b, "es"));
 }
-// Cada categoría tiene su propio link (?cat=Nombre) — se puede copiar,
-// compartir por WhatsApp/Instagram/un anuncio, o abrir directo y cae
+// Versión "prolija" del nombre de categoría para usar en el link: minúsculas,
+// sin tildes ni ñ especial, espacios y símbolos como guion. Ej: "Hogar y
+// Decoración" -> "hogar-y-decoracion". Así el link queda legible y sin el
+// %20 / %C3%B3 feo que deja un nombre con espacios y tildes tal cual.
+function slugify(s) {
+  return (s || "")
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+// Cada categoría tiene su propio link (?cat=nombre-de-categoria) — se puede
+// copiar, compartir por WhatsApp/Instagram/un anuncio, o abrir directo y cae
 // justo en esa categoría. Al navegar entre categorías la URL se actualiza
 // sola, así lo que ves arriba siempre es el link a donde estás parado.
 function categoryUrl(cat) {
-  const url = new URL(location.href);
-  url.search = "";
-  if (cat && cat !== "__home__") url.searchParams.set("cat", cat);
-  return url.pathname + url.search;
+  if (!cat || cat === "__home__") return location.pathname;
+  return `${location.pathname}?cat=${slugify(cat)}`;
 }
 function goToCategory(cat, opts = {}) {
   activeCategory = cat;
   renderCats();
   renderGrid();
-  if (!opts.skipUrl) {
-    const url = categoryUrl(cat);
-    history.replaceState(null, "", url === location.pathname ? location.pathname : url);
-  }
+  if (!opts.skipUrl) history.replaceState(null, "", categoryUrl(cat));
   if (!opts.skipScroll) window.scrollTo({ top: 0, behavior: "smooth" });
 }
-// ?cat=Nombre en la URL abre directo esa categoría — mismo mecanismo que
-// ?p=ID para productos puntuales (openProductFromUrl, más abajo).
+// ?cat=nombre-de-categoria en la URL abre directo esa categoría — mismo
+// mecanismo que ?p=ID para productos puntuales (openProductFromUrl, más abajo).
 function openCategoryFromUrl() {
   try {
     const wanted = new URLSearchParams(location.search).get("cat");
     if (!wanted) return;
-    const match = categoriesFromProducts().find(c => c.toLowerCase() === wanted.toLowerCase());
+    const match = categoriesFromProducts().find(c => slugify(c) === wanted.toLowerCase());
     if (match) goToCategory(match, { skipUrl: true, skipScroll: true });
   } catch (e) {}
 }
