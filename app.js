@@ -10,12 +10,20 @@
 // decide quién puede VER el modo edición (nada de datos pasa por ahí).
 // ================================================================
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, setPersistence, browserLocalPersistence, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { initializeFirestore, collection, addDoc, doc, updateDoc, setDoc, getDocs, increment, query, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { firebaseConfig, ADMIN_EMAILS } from "./firebase-config.js";
 
 const fbApp = initializeApp(firebaseConfig);
 const auth = getAuth(fbApp);
+// En iPhone (Safari y también Chrome, que ahí adentro usa el mismo motor de
+// Safari), el login con Google fallaba en silencio: volvía al catálogo pero
+// nunca quedabas logueado. La causa es que Safari, por sus protecciones de
+// privacidad, a veces no conserva bien el estado pendiente del login que
+// Firebase guarda antes de mandarte a Google — pasando a este tipo de
+// guardado (localStorage, más resistente en Safari) en vez del que usa por
+// defecto, se soluciona.
+setPersistence(auth, browserLocalPersistence).catch((e) => console.error("setPersistence", e));
 // experimentalAutoDetectLongPolling: en redes con proxy/firewall estrictos
 // (bastante común en 4G corporativo, algunos routers, extensiones de
 // seguridad) el canal en tiempo real "WebChannel" que usa Firestore por
@@ -1226,8 +1234,11 @@ function renderAuthSlot() {
 // más abajo. En compu se sigue usando el popup, que es más cómodo.
 const isMobileBrowser = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
 
-function signInAdmin() {
+async function signInAdmin() {
   if (isMobileBrowser) {
+    try {
+      await setPersistence(auth, browserLocalPersistence);
+    } catch (e) { console.error("setPersistence", e); }
     signInWithRedirect(auth, googleProvider).catch((e) => {
       console.error(e);
       toast("No se pudo iniciar sesión con Google", "error");
