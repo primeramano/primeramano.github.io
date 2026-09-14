@@ -48,54 +48,25 @@ function b64DecodeUnicode(str) {
   return decodeURIComponent(atob(str).split("").map(c => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2)).join(""));
 }
 
-// Guardar productos/fotos/config = un commit directo a este repo con la API
-// de GitHub. Para eso hace falta un token de acceso personal (PAT) — se pide
-// una sola vez por dispositivo con un prompt() y se guarda en localStorage
-// de ESE navegador, nunca se manda a ningún servidor propio.
-const GH_TOKEN_KEY = "pm_gh_token_v1";
-function getGhToken() { return localStorage.getItem(GH_TOKEN_KEY) || ""; }
-function setGhToken(t) { localStorage.setItem(GH_TOKEN_KEY, t); }
-function clearGhToken() { localStorage.removeItem(GH_TOKEN_KEY); }
-
-async function verifyGhToken(token) {
-  const res = await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}`, {
-    headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" },
-  });
-  return res.ok;
-}
-
-// Se llama apenas se detecta que la cuenta de Google logueada es admin. Si
-// ya hay un token guardado en este navegador, no pide nada. Si no hay, o el
-// que había dejó de funcionar, pide uno nuevo con un prompt().
-async function ensureGhAccess() {
-  let token = getGhToken();
-  if (token && (await verifyGhToken(token))) return true;
-  token = prompt(
-    "Para guardar cambios necesito un token de GitHub (una sola vez por dispositivo).\n\n" +
-    "Generalo en: github.com/settings/tokens → Fine-grained tokens → Generate new token\n" +
-    "Resource owner: " + GH_OWNER + "\n" +
-    "Repository access: Only select repositories → " + GH_REPO + "\n" +
-    "Permissions → Contents: Read and write\n\n" +
-    "Pegá acá el token:"
-  );
-  if (!token) return false;
-  const ok = await verifyGhToken(token);
-  if (!ok) { alert("Ese token no funcionó. Revisá que tenga acceso a " + GH_REPO + " con permiso Contents: Read and write."); return false; }
-  setGhToken(token);
-  return true;
-}
-
+// Guardar productos/fotos/config = un commit a este repo con la API de
+// GitHub. Ya NO se pide ningún token en el navegador: se hace a través de
+// una función serverless propia (mismo proyecto de Vercel de Mercado Pago)
+// que verifica tu sesión de Google — si tu email está en ADMIN_EMAILS, el
+// commit se hace con un token que vive únicamente ahí en el servidor, nunca
+// en el celular ni la compu. Con loguearte con Google alcanza, en cualquier
+// dispositivo, para siempre.
 async function ghRequest(path, opts = {}) {
-  const token = getGhToken();
-  if (!token) throw new Error("No hay token de GitHub guardado — volvé a iniciar sesión como admin.");
-  const res = await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}${path}`, {
-    method: opts.method || "GET",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/vnd.github+json",
-      ...(opts.body ? { "Content-Type": "application/json" } : {}),
-    },
-    body: opts.body,
+  if (!fbUser) throw new Error("No hay sesión de Google activa — volvé a iniciar sesión.");
+  const idToken = await fbUser.getIdToken();
+  const res = await fetch(`${MP_FUNCTION_ENDPOINT}/api/github-proxy`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      idToken,
+      path,
+      method: opts.method || "GET",
+      body: opts.body ? JSON.parse(opts.body) : undefined,
+    }),
   });
   return res;
 }
@@ -219,11 +190,11 @@ async function pushOrderToSheet(order) {
 
 function githubErrorMessage(e) {
   const s = ((e && e.message) || "").toLowerCase();
-  if (s.includes("401") || s.includes("bad credentials") || s.includes("token de github")) {
-    return "No se guardó: tu token de GitHub venció o es inválido. Cerrá sesión y volvé a entrar para generar uno nuevo.";
+  if (s.includes("401") || s.includes("bad credentials") || s.includes("sesión de google")) {
+    return "No se guardó: tu sesión de Google venció. Cerrá sesión y volvé a entrar.";
   }
-  if (s.includes("403") || s.includes("rate limit")) {
-    return "No se guardó: el token no tiene permiso sobre este repo, o límite momentáneo de GitHub. Probá de nuevo en un minuto.";
+  if (s.includes("403") || s.includes("rate limit") || s.includes("no autorizado")) {
+    return "No se guardó: no autorizado para editar (revisá que este email esté en la lista de administradores), o límite momentáneo de GitHub. Probá de nuevo en un minuto.";
   }
   if (s.includes("409") || s.includes("sha")) {
     return "No se guardó: alguien más (u otra pestaña) guardó un cambio justo antes. Recargá la página y probá de nuevo.";
@@ -1257,8 +1228,7 @@ onAuthStateChanged(auth, async (user) => {
     return;
   }
   const email = (user && user.email || "").toLowerCase();
-  const emailIsAdmin = !!(user && ADMIN_EMAILS.map(e => e.toLowerCase()).includes(email));
-  isAdmin = emailIsAdmin && (await ensureGhAccess());
+  isAdmin = !!(user && ADMIN_EMAILS.map(e => e.toLowerCase()).includes(email));
   if (isAdmin) startOrdersListener(); else stopOrdersListener();
   if (!isAdmin) stopCartsListener();
   renderAuthSlot();
