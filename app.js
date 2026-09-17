@@ -126,6 +126,45 @@ async function ghPutBinaryFile(path, dataUrl, message) {
 // para que Meta los deduplique y no cuente el mismo evento dos veces.
 const META_CAPI_ENDPOINT = "https://primeramano-meta-capi.belfioresantiago.workers.dev";
 
+function getMetaCookie(name) {
+  const m = document.cookie.match(new RegExp("(?:^|; )" + name + "=([^;]*)"));
+  return m ? decodeURIComponent(m[1]) : "";
+}
+// _fbp y _fbc son las cookies que pone el propio pixel de Meta — son lo que
+// permite que un evento mandado por CAPI (servidor) se pueda igual atribuir
+// al anuncio/persona correcta. Antes no se mandaban (user_data quedaba
+// vacío), lo que le baja mucho la calidad de matching a cada evento CAPI.
+function metaBrowserUserData() {
+  return {
+    fbp: getMetaCookie("_fbp") || undefined,
+    fbc: getMetaCookie("_fbc") || undefined,
+    client_user_agent: navigator.userAgent,
+  };
+}
+// Manda un evento SOLO por Conversions API (servidor), sin pasar por fbq —
+// para eventos que se confirman después, no en el momento (ver más abajo:
+// Purchase real recién cuando se confirma el pago, no cuando el cliente
+// arma el pedido). user_data va explícito porque en ese momento no estamos
+// en la sesión del cliente que originó la compra.
+function sendMetaCapiOnly(event, params, userData, eventId) {
+  const id = eventId || ((typeof crypto !== "undefined" && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  try {
+    fetch(META_CAPI_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event_name: event,
+        event_id: id,
+        event_source_url: location.href,
+        user_data: userData || {},
+        custom_data: params || {},
+      }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch (e) {}
+}
 function trackMeta(event, params) {
   const eventId = (typeof crypto !== "undefined" && crypto.randomUUID)
     ? crypto.randomUUID()
@@ -135,20 +174,7 @@ function trackMeta(event, params) {
     if (typeof fbq === "function") fbq("track", event, params || {}, { eventID: eventId });
   } catch (e) {}
 
-  try {
-    fetch(META_CAPI_ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        event_name: event,
-        event_id: eventId,
-        event_source_url: location.href,
-        user_data: {},
-        custom_data: params || {},
-      }),
-      keepalive: true,
-    }).catch(() => {});
-  } catch (e) {}
+  sendMetaCapiOnly(event, params, metaBrowserUserData(), eventId);
 }
 
 // ---------- Planilla de resultados (Google Sheets) ----------
@@ -874,16 +900,16 @@ function renderCartDrawer() {
       };
     }
 
-    // trackMeta("Purchase", ...) se dispara acá (al confirmar el pedido) y no
-    // recién cuando se marca "Entregado" en el panel, porque ese paso lo hace
-    // el admin desde su propio navegador — atribuírselo ahí ensuciaría el
-    // matching del pixel con los datos del cliente real.
-    function trackPurchase() {
-      trackMeta("Purchase", {
-        content_ids: lines.map(l => l.item.id), content_type: "product",
-        num_items: cartCount(), value: grandTotal, currency: "ARS"
-      });
-    }
+    // Purchase ya NO se manda acá (al confirmar el pedido) — se manda recién
+    // cuando el pago está de verdad confirmado, para que lo que Meta usa
+    // para calcular ROAS sea la facturación real, no pedidos armados que
+    // después pueden no pagarse/no entregarse:
+    //  - Mercado Pago: lo dispara el webhook de pago aprobado (server-side,
+    //    ver api/webhook.js en el repo mp-checkout).
+    //  - Efectivo/Transferencia: se dispara acá mismo, en app.js, cuando el
+    //    admin marca el pedido "Entregado" (ver renderAdminOrders más abajo)
+    //    — usando el fbp/fbc guardados en el pedido en el momento en que el
+    //    cliente lo armó, no los del navegador del admin.
     function resetCartAndClose(msg) {
       setTimeout(() => {
         cart = {};
@@ -919,11 +945,14 @@ function renderCartDrawer() {
               orderId,
               items: mpItems,
               buyer: { nombre: checkoutData.nombre, telefono: checkoutData.telefono },
+              // Van acá (no se pierden) para que cuando el webhook confirme el
+              // pago aprobado, el Purchase real que le llega a Meta se pueda
+              // seguir atribuyendo al anuncio/persona correcta.
+              meta: { fbp: getMetaCookie("_fbp"), fbc: getMetaCookie("_fbc"), eventSourceUrl: location.href },
             }),
           });
           const j = await res.json();
           if (!res.ok || !j.init_point) throw new Error(j.error || "sin init_point");
-          trackPurchase();
           location.href = j.init_point; // redirige al Checkout Pro de Mercado Pago
         } catch (e) {
           console.error("mercado pago create-preference", e);
@@ -941,7 +970,6 @@ function renderCartDrawer() {
           content_ids: lines.map(l => l.item.id), content_type: "product",
           num_items: cartCount(), value: grandTotal, currency: "ARS"
         });
-        trackPurchase();
         resetCartAndClose("¡Pedido enviado!");
       };
     }
@@ -1005,6 +1033,13 @@ async function submitOrder(lines, d, total, envio) {
       // Con Mercado Pago el pedido arranca "pendiente de pago" — el webhook
       // de la función serverless confirma cuando el pago queda aprobado.
       ...(d.pago === "mercadopago" ? { pagoEstado: "pendiente" } : {}),
+      // fbp/fbc del cliente en el momento exacto en que arma el pedido — se
+      // usan después (al marcar "Entregado") para que el Purchase real que
+      // llega a Meta se pueda atribuir al anuncio/persona correcta, en vez
+      // de perderse por mandarse recién cuando el admin lo confirma.
+      metaFbp: getMetaCookie("_fbp"),
+      metaFbc: getMetaCookie("_fbc"),
+      metaUserAgent: navigator.userAgent || "",
       createdAt: serverTimestamp(),
     });
     // Marca el carrito de este visitante como convertido — así en el panel
@@ -1145,6 +1180,23 @@ function renderAdminOrders() {
       if (newEstado === "entregado" && order && !order.ventasSynced) {
         await registrarVentasDePedido(order);
         updateDoc(doc(db, "orders", sel.dataset.id), { ventasSynced: true }).catch(() => {});
+      }
+      // Acá se manda el Purchase real a Meta (una sola vez por pedido, con
+      // metaPurchaseSynced) — recién ahora que el pedido está confirmado de
+      // verdad. Los pedidos de Mercado Pago NO entran acá: para esos, el
+      // Purchase ya lo manda el webhook de pago aprobado (más rápido y más
+      // confiable que esperar a que lo marques Entregado a mano).
+      if (newEstado === "entregado" && order && !order.metaPurchaseSynced && order.pago !== "mercadopago") {
+        sendMetaCapiOnly("Purchase", {
+          content_ids: (order.items || []).map(it => it.id), content_type: "product",
+          num_items: (order.items || []).reduce((s, it) => s + (it.qty || 0), 0),
+          value: order.total || 0, currency: "ARS"
+        }, {
+          fbp: order.metaFbp || undefined,
+          fbc: order.metaFbc || undefined,
+          client_user_agent: order.metaUserAgent || undefined,
+        }, `entregado_${sel.dataset.id}`);
+        updateDoc(doc(db, "orders", sel.dataset.id), { metaPurchaseSynced: true }).catch(() => {});
       }
     };
   });
