@@ -348,29 +348,49 @@ async function syncCartToFirestore() {
 // Si por lo que sea un pedido a GitHub se cuelga (sin internet, etc.), esto
 // evita que el botón quede trabado en "Guardando..." para siempre: a los
 // `ms` milisegundos lo tratamos como error y se puede reintentar.
-function withSaveTimeout(promise, ms = 15000) {
+// 25s de base (antes 15s) — en 4G/celular la vuelta completa (verificar
+// sesión de Google + relay a GitHub) puede tardar bastante más que en wifi
+// de compu, y con 15s a veces cortaba el guardado a mitad de camino.
+function withSaveTimeout(promise, ms = 25000) {
   return Promise.race([
     promise,
     new Promise((_, reject) => setTimeout(() => reject(new Error("Tardó demasiado (timeout)")), ms))
   ]);
 }
 
-function fileToDataUrl(file, maxSize, quality) {
+// Dibuja el source (ya orientado) en un canvas achicado y devuelve el data-URL.
+function drawToCanvas(source, srcW, srcH, maxSize, quality) {
+  let width = srcW, height = srcH;
+  if (width > height && width > maxSize) { height = Math.round(height * maxSize / width); width = maxSize; }
+  else if (height > maxSize) { width = Math.round(width * maxSize / height); height = maxSize; }
+  const canvas = document.createElement("canvas");
+  canvas.width = width; canvas.height = height;
+  canvas.getContext("2d").drawImage(source, 0, 0, width, height);
+  return canvas.toDataURL("image/jpeg", quality);
+}
+// Las fotos sacadas con el celular en vertical suelen venir con una
+// rotación guardada en el EXIF, no en los píxeles — si se ignora (como
+// hacía el método viejo con <img>), la foto se ve girada en el catálogo.
+// createImageBitmap con imageOrientation:"from-image" la endereza sola;
+// donde no está soportado (navegadores viejos) se cae al método anterior.
+async function fileToDataUrl(file, maxSize, quality) {
+  if (typeof createImageBitmap === "function") {
+    try {
+      const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+      const dataUrl = drawToCanvas(bitmap, bitmap.width, bitmap.height, maxSize, quality);
+      bitmap.close();
+      return dataUrl;
+    } catch (e) {
+      // sigue al método de respaldo de abajo (por ej. formato no soportado)
+    }
+  }
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onerror = reject;
+    reader.onerror = () => reject(new Error("No se pudo leer el archivo de la foto"));
     reader.onload = () => {
       const img = new Image();
-      img.onerror = reject;
-      img.onload = () => {
-        let { width, height } = img;
-        if (width > height && width > maxSize) { height = Math.round(height * maxSize / width); width = maxSize; }
-        else if (height > maxSize) { width = Math.round(width * maxSize / height); height = maxSize; }
-        const canvas = document.createElement("canvas");
-        canvas.width = width; canvas.height = height;
-        canvas.getContext("2d").drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL("image/jpeg", quality));
-      };
+      img.onerror = () => reject(new Error("Formato de foto no soportado — probá exportarla como JPG o PNG"));
+      img.onload = () => resolve(drawToCanvas(img, img.width, img.height, maxSize, quality));
       img.src = reader.result;
     };
     reader.readAsDataURL(file);
@@ -1604,7 +1624,10 @@ $("#file-product").onchange = async (e) => {
       const dataUrl = await processProductPhoto(file);
       pendingImages.push(dataUrl);
       renderPhotoStrip();
-    } catch (err) { console.error(err); toast("Error procesando una foto", "error"); }
+    } catch (err) {
+      console.error(err);
+      toast((err && err.message) ? `No se pudo procesar "${file.name}": ${err.message}` : `No se pudo procesar "${file.name}"`, "error");
+    }
   }
   toast("Fotos listas — no te olvides de Guardar");
 };
@@ -1630,7 +1653,7 @@ $("#p-save").onclick = async () => {
         btn.textContent = `Subiendo foto ${i + 1}/${pendingImages.length}...`;
         const path = await withSaveTimeout(
           ghPutBinaryFile(`assets/products/${id}-${i}.jpg`, img, `Foto de producto: ${title}`),
-          20000
+          30000
         );
         finalImages.push(path);
       } else {
@@ -1723,11 +1746,11 @@ $("#save-config-btn").onclick = async () => {
   try {
     if (pendingLogoImage) {
       btn.textContent = "Subiendo logo...";
-      body.logo = await withSaveTimeout(ghPutBinaryFile("assets/logo.jpg", pendingLogoImage, "Actualizar logo"), 20000);
+      body.logo = await withSaveTimeout(ghPutBinaryFile("assets/logo.jpg", pendingLogoImage, "Actualizar logo"), 30000);
     }
     if (pendingCoverImage) {
       btn.textContent = "Subiendo portada...";
-      body.cover = await withSaveTimeout(ghPutBinaryFile("assets/cover.jpg", pendingCoverImage, "Actualizar portada"), 20000);
+      body.cover = await withSaveTimeout(ghPutBinaryFile("assets/cover.jpg", pendingCoverImage, "Actualizar portada"), 30000);
     }
     btn.textContent = "Guardando...";
     const { sha, data } = await withSaveTimeout(ghGetJsonFile("data/settings.json"));

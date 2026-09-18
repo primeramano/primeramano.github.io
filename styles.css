@@ -411,6 +411,19 @@ a.wa-btn{background:#25D366;}
   border:none;width:32px;height:32px;border-radius:999px;font-size:1rem;
 }
 .pmodal{position:relative;}
+/* Modal de editar/agregar producto: antes todo el modal (fotos + campos +
+   botón Guardar) era un solo bloque scrolleable, así que con varias fotos
+   cargadas el botón Guardar quedaba varias pantallas más abajo — en un
+   celular, fácil de no encontrar o de dar por "no anda". Ahora solo el
+   contenido del formulario scrollea; el botón queda fijo abajo, siempre
+   a la vista. */
+#edit-modal{display:flex;flex-direction:column;overflow:hidden;}
+#edit-modal .edit-modal-scroll{padding:26px;overflow-y:auto;flex:1;min-height:0;}
+#edit-modal .btn-row{
+  flex:none;margin:0;padding:14px 26px;border-top:1px solid var(--border);
+  background:var(--surface);border-radius:0 0 18px 18px;
+}
+.p-desc-textarea{min-height:130px;}
 
 /* ---------- Auth / admin toggle ---------- */
 .google-btn{

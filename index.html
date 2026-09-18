@@ -301,10 +301,10 @@ src="https://www.facebook.com/tr?id=1021991960884965&ev=PageView&noscript=1"
 <div class="pmodal-overlay" id="edit-overlay">
   <div class="pmodal" id="edit-modal" style="grid-template-columns:1fr;max-width:520px;">
     <button class="pmodal-close" id="edit-close">✕</button>
-    <div class="info" style="padding:26px;">
+    <div class="info edit-modal-scroll">
       <h2 id="edit-title">Producto</h2>
       <div class="field">
-        <label>Fotos (hasta 4)</label>
+        <label>Fotos (hasta 12)</label>
         <div class="img-drop" id="drop-product">Click para subir fotos (hasta 12)</div>
         <input type="file" id="file-product" accept="image/*" multiple hidden>
         <div class="photo-strip" id="photo-strip"></div>
@@ -321,17 +321,17 @@ src="https://www.facebook.com/tr?id=1021991960884965&ev=PageView&noscript=1"
         </div>
         <div class="field">
           <label>Precio ($)</label>
-          <input type="number" id="p-price">
+          <input type="number" id="p-price" inputmode="decimal">
         </div>
       </div>
       <div class="field">
         <label>Descripción</label>
-        <textarea id="p-desc"></textarea>
+        <textarea id="p-desc" class="p-desc-textarea"></textarea>
       </div>
-      <div class="btn-row">
-        <button class="btn btn-primary" id="p-save" style="flex:1;">Guardar</button>
-        <button class="btn btn-danger" id="p-delete" hidden>Eliminar</button>
-      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="p-save" style="flex:1;">Guardar</button>
+      <button class="btn btn-danger" id="p-delete" hidden>Eliminar</button>
     </div>
   </div>
 </div>
