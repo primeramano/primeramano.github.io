@@ -184,7 +184,6 @@ src="https://www.facebook.com/tr?id=1021991960884965&ev=PageView&noscript=1"
   <div class="admin-tabs">
     <button class="admin-tab active" data-tab="productos">Productos</button>
     <button class="admin-tab" data-tab="pedidos">Pedidos</button>
-    <button class="admin-tab" data-tab="carritos">Carritos</button>
     <button class="admin-tab" data-tab="diseno">Diseño y datos</button>
   </div>
 
@@ -202,34 +201,39 @@ src="https://www.facebook.com/tr?id=1021991960884965&ev=PageView&noscript=1"
     <div id="admin-product-list"></div>
   </div>
 
-  <!-- Pedidos tab -->
+  <!-- Pedidos tab (dashboard unificado: pedidos + carritos abandonados) -->
   <div class="admin-body" id="tab-pedidos" hidden>
+    <div class="dash-stats" id="dash-stats"></div>
     <div class="bestsellers-summary" id="bestsellers-summary" hidden></div>
-    <div class="orders-filter">
-      <select id="orders-filter-estado">
-        <option value="">Todos los estados</option>
-        <option value="nuevo">Nuevo</option>
-        <option value="en_proceso">En proceso</option>
-        <option value="entregado">Entregado</option>
-        <option value="cancelado">Cancelado</option>
-      </select>
-    </div>
-    <p id="orders-empty" style="font-size:.85rem;color:var(--muted);">Todavía no hay pedidos.</p>
-    <div id="admin-orders-list"></div>
-  </div>
 
-  <!-- Carritos tab -->
-  <div class="admin-body" id="tab-carritos" hidden>
-    <p class="field-hint" style="margin-top:0;">Carritos con productos agregados, aunque el visitante no haya llegado a confirmar el pedido — útil para ver qué se quedó "a mitad de camino".</p>
-    <div class="orders-filter">
-      <select id="carts-filter-estado">
-        <option value="">Todos</option>
-        <option value="activo">Activos (sin comprar)</option>
-        <option value="convertido">Convertidos en pedido</option>
-      </select>
+    <div class="pedidos-subnav">
+      <button class="pedidos-subtab active" data-sub="pedidos">Pedidos</button>
+      <button class="pedidos-subtab" data-sub="abandonados">Carritos abandonados<span class="subtab-badge" id="abandoned-badge" hidden>0</span></button>
     </div>
-    <p id="carts-empty" style="font-size:.85rem;color:var(--muted);">Todavía no hay carritos con productos.</p>
-    <div id="admin-carts-list"></div>
+
+    <input class="admin-search" id="orders-search" type="text" placeholder="Buscar por nombre o teléfono...">
+
+    <!-- Sub: pedidos confirmados -->
+    <div id="sub-pedidos">
+      <div class="orders-filter">
+        <select id="orders-filter-estado">
+          <option value="">Todos los estados</option>
+          <option value="nuevo">Nuevo</option>
+          <option value="en_proceso">En proceso</option>
+          <option value="entregado">Entregado</option>
+          <option value="cancelado">Cancelado</option>
+        </select>
+      </div>
+      <p id="orders-empty" style="font-size:.85rem;color:var(--muted);">Todavía no hay pedidos.</p>
+      <div id="admin-orders-list"></div>
+    </div>
+
+    <!-- Sub: carritos abandonados con contacto -->
+    <div id="sub-abandonados" hidden>
+      <p class="field-hint" style="margin-top:0;">Carritos donde la persona llegó a completar su nombre y teléfono en el checkout pero no terminó de confirmar el pedido — mandale un WhatsApp para ayudarla a cerrar la compra.</p>
+      <p id="abandoned-empty" style="font-size:.85rem;color:var(--muted);">Por ahora no hay carritos abandonados con datos de contacto.</p>
+      <div id="admin-abandoned-list"></div>
+    </div>
   </div>
 
   <!-- Diseño tab -->

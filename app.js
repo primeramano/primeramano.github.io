@@ -43,6 +43,7 @@ let fbUser = null;
 // puede leerlos o cambiarles el estado.
 let orders = [];
 let ordersFilterEstado = "";
+let ordersSearchTerm = "";
 let unsubscribeOrders = null;
 
 const GH_OWNER = "primeramano";
@@ -343,6 +344,23 @@ async function syncCartToFirestore() {
       items, total, estado: "activo", updatedAt: serverTimestamp(),
     }, { merge: true });
   } catch (e) { console.error("No se pudo sincronizar el carrito", e); }
+}
+
+// En cuanto la persona completa nombre y teléfono en el checkout (paso
+// "form", botón "Ver resumen") y todavía no confirmó el pedido, guardamos
+// esos datos en el mismo documento de "carts". Así, si abandona antes de
+// mandar el WhatsApp/pagar, el panel de admin ya tiene con quién
+// contactarse para ayudarla a terminar la compra — a diferencia del
+// carrito anónimo (sin nombre/teléfono), que no sirve para recuperar nada.
+async function syncCheckoutContactToFirestore(d) {
+  try {
+    await setDoc(doc(db, "carts", cartVisitorId), {
+      nombre: d.nombre || "",
+      telefono: d.telefono || "",
+      checkoutAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  } catch (e) { console.error("No se pudo guardar el contacto del carrito", e); }
 }
 
 // Si por lo que sea un pedido a GitHub se cuelga (sin internet, etc.), esto
@@ -885,6 +903,10 @@ function renderCartDrawer() {
       if (d.entrega === "domicilio" && (!d.entreCalles || !d.localidad || !d.provincia || !d.cp)) return toast("Completá los datos de envío");
       if (!d.telefono) return toast("Falta tu teléfono");
 
+      // Recién acá tenemos nombre+teléfono validados — guardamos el contacto
+      // en el carrito para poder recuperarlo si no llega a confirmar el pedido.
+      syncCheckoutContactToFirestore(d);
+
       cartStep = "summary";
       renderCartDrawer();
     };
@@ -1101,9 +1123,13 @@ function stopOrdersListener() {
   orders = [];
 }
 
-// ---------- Carritos (admin) ----------
+// ---------- Carritos abandonados (admin) ----------
+// Acá ya NO mostramos todos los carritos anónimos (eso no servía para nada
+// porque no hay forma de contactar a un visitante sin nombre/teléfono).
+// Solo entran los carritos donde la persona llegó a completar sus datos de
+// contacto en el checkout (ver syncCheckoutContactToFirestore) y todavía
+// no se convirtieron en pedido — esos sí se pueden recuperar por WhatsApp.
 let carts = [];
-let cartsFilterEstado = "";
 let unsubscribeCarts = null;
 function startCartsListener() {
   if (unsubscribeCarts) return;
@@ -1111,7 +1137,8 @@ function startCartsListener() {
     const q = query(collection(db, "carts"), orderBy("updatedAt", "desc"));
     unsubscribeCarts = onSnapshot(q, (snap) => {
       carts = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(c => (c.items || []).length > 0);
-      renderAdminCarts();
+      renderAdminAbandoned();
+      renderDashStats();
     }, (err) => console.error("carts listener", err));
   } catch (e) { console.error(e); }
 }
@@ -1125,29 +1152,60 @@ function fmtCartDate(ts) {
     return ts.toDate().toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
   } catch (e) { return ""; }
 }
-function renderAdminCarts() {
-  const wrap = $("#admin-carts-list");
-  const empty = $("#carts-empty");
+function abandonedCarts() {
+  return carts.filter(c => c.telefono && c.estado !== "convertido");
+}
+function waRecoverLink(c) {
+  const nombre = c.nombre ? String(c.nombre).trim().split(" ")[0] : "";
+  const itemsTxt = (c.items || []).map(it => `${it.qty} x ${it.title}`).join(", ");
+  const msg = `Hola${nombre ? " " + nombre : ""}! 👋 Vimos que te quedó armado un pedido en ${settings.brand || "Primera Mano"} (${itemsTxt}) por ${fmtARS(c.total || 0)}. ¿Te ayudamos a terminarlo?`;
+  const num = (c.telefono || "").replace(/\D/g, "");
+  return `https://wa.me/${num}?text=${encodeURIComponent(msg)}`;
+}
+function renderAdminAbandoned() {
+  const wrap = $("#admin-abandoned-list");
+  const empty = $("#abandoned-empty");
+  const badge = $("#abandoned-badge");
+  const total = abandonedCarts();
+  if (badge) { badge.textContent = total.length; badge.hidden = total.length === 0; }
   if (!wrap) return;
-  const list = cartsFilterEstado ? carts.filter(c => (c.estado || "activo") === cartsFilterEstado) : carts.filter(c => c.estado !== "vacio");
+  const term = (ordersSearchTerm || "").toLowerCase();
+  let list = total;
+  if (term) list = list.filter(c => (c.nombre || "").toLowerCase().includes(term) || (c.telefono || "").includes(term));
   empty.hidden = list.length > 0;
   wrap.innerHTML = list.map(c => {
     const items = (c.items || []).map(it => `${it.qty} x ${escapeHtml(it.title)}`).join("<br>");
-    const estadoLabel = c.estado === "convertido" ? "✔ Convertido en pedido" : "🛒 Activo (sin comprar)";
-    const estadoClass = c.estado === "convertido" ? "aor-total" : "aor-date";
     return `
-      <div class="admin-order-row" data-id="${c.id}">
+      <div class="admin-order-row abandoned-row" data-id="${c.id}">
         <div class="aor-head">
-          <b>Visitante ${escapeHtml(c.id.slice(0, 8))}</b>
-          <span class="${estadoClass}">${fmtCartDate(c.updatedAt)}</span>
+          <b>${escapeHtml(c.nombre || "Sin nombre")}</b>
+          <span class="aor-date">${fmtCartDate(c.updatedAt)}</span>
         </div>
         <div class="aor-items">${items}</div>
+        <div class="aor-meta">📞 ${escapeHtml(c.telefono || "")}</div>
         <div class="aor-foot">
           <span class="aor-total">${fmtARS(c.total || 0)}</span>
-          <span style="font-size:.8rem;color:var(--muted);">${estadoLabel}</span>
+          <a class="wa-recover-btn" href="${waRecoverLink(c)}" target="_blank" rel="noopener">Recuperar por WhatsApp</a>
         </div>
       </div>`;
   }).join("");
+}
+
+// ---------- Dashboard: stats arriba de "Pedidos" ----------
+function renderDashStats() {
+  const box = $("#dash-stats");
+  if (!box) return;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const isToday = (ts) => { try { return ts && ts.toDate && ts.toDate() >= today; } catch (e) { return false; } };
+  const ordersToday = orders.filter(o => isToday(o.createdAt));
+  const entregadoHoy = ordersToday.filter(o => o.estado === "entregado").reduce((s, o) => s + (o.total || 0), 0);
+  const pendientes = orders.filter(o => (o.estado || "nuevo") === "nuevo" || o.estado === "en_proceso").length;
+  const abandonados = abandonedCarts().length;
+  box.innerHTML = `
+    <div class="dash-stat"><span class="dash-stat-num">${ordersToday.length}</span><span class="dash-stat-label">Pedidos hoy</span></div>
+    <div class="dash-stat"><span class="dash-stat-num">${fmtARS(entregadoHoy)}</span><span class="dash-stat-label">Entregado hoy</span></div>
+    <div class="dash-stat"><span class="dash-stat-num">${pendientes}</span><span class="dash-stat-label">Pedidos pendientes</span></div>
+    <div class="dash-stat${abandonados > 0 ? " dash-stat-warn" : ""}"><span class="dash-stat-num">${abandonados}</span><span class="dash-stat-label">Carritos abandonados</span></div>`;
 }
 
 const ESTADO_LABELS = { nuevo: "Nuevo", en_proceso: "En proceso", entregado: "Entregado", cancelado: "Cancelado" };
@@ -1160,8 +1218,11 @@ function fmtOrderDate(ts) {
 function renderAdminOrders() {
   const wrap = $("#admin-orders-list");
   const empty = $("#orders-empty");
+  renderDashStats();
   if (!wrap) return;
-  const list = ordersFilterEstado ? orders.filter(o => (o.estado || "nuevo") === ordersFilterEstado) : orders;
+  let list = ordersFilterEstado ? orders.filter(o => (o.estado || "nuevo") === ordersFilterEstado) : orders;
+  const term = (ordersSearchTerm || "").toLowerCase();
+  if (term) list = list.filter(o => (o.nombre || "").toLowerCase().includes(term) || (o.telefono || "").includes(term));
   empty.hidden = list.length > 0;
   wrap.innerHTML = list.map(o => {
     const items = (o.items || []).map(it => `${it.qty} x ${escapeHtml(it.title)}`).join("<br>");
@@ -1445,8 +1506,10 @@ onAuthStateChanged(auth, async (user) => {
   }
   const email = (user && user.email || "").toLowerCase();
   isAdmin = !!(user && ADMIN_EMAILS.map(e => e.toLowerCase()).includes(email));
-  if (isAdmin) startOrdersListener(); else stopOrdersListener();
-  if (!isAdmin) stopCartsListener();
+  // Arrancamos los dos listeners (pedidos y carritos) ya al loguearse, no
+  // solo al abrir cada pestaña — así las stats del dashboard y el badge de
+  // "carritos abandonados" están al día desde que se abre el panel.
+  if (isAdmin) { startOrdersListener(); startCartsListener(); } else { stopOrdersListener(); stopCartsListener(); }
   renderAuthSlot();
   renderGrid();
 });
@@ -1566,6 +1629,8 @@ function openAdminDrawer() {
   $("#admin-drawer").classList.add("open");
   refreshAdminProductList();
   maybeShowSeedBanner();
+  renderAdminOrders();
+  renderAdminAbandoned();
 }
 function closeAdminDrawer() {
   $("#admin-overlay").classList.remove("open");
@@ -1580,16 +1645,28 @@ $$(".admin-tab").forEach(tab => {
     tab.classList.add("active");
     $("#tab-productos").hidden = tab.dataset.tab !== "productos";
     $("#tab-pedidos").hidden = tab.dataset.tab !== "pedidos";
-    $("#tab-carritos").hidden = tab.dataset.tab !== "carritos";
     $("#tab-diseno").hidden = tab.dataset.tab !== "diseno";
-    if (tab.dataset.tab === "pedidos") renderAdminOrders();
-    if (tab.dataset.tab === "carritos") { startCartsListener(); renderAdminCarts(); }
+    if (tab.dataset.tab === "pedidos") { renderAdminOrders(); renderAdminAbandoned(); }
   };
 });
 
-$("#carts-filter-estado") && ($("#carts-filter-estado").onchange = (e) => {
-  cartsFilterEstado = e.target.value;
-  renderAdminCarts();
+// Sub-pestañas dentro de "Pedidos": pedidos confirmados vs. carritos
+// abandonados con contacto.
+let pedidosSubTab = "pedidos";
+$$(".pedidos-subtab").forEach(tab => {
+  tab.onclick = () => {
+    $$(".pedidos-subtab").forEach(t => t.classList.remove("active"));
+    tab.classList.add("active");
+    pedidosSubTab = tab.dataset.sub;
+    $("#sub-pedidos").hidden = pedidosSubTab !== "pedidos";
+    $("#sub-abandonados").hidden = pedidosSubTab !== "abandonados";
+  };
+});
+
+$("#orders-search") && ($("#orders-search").oninput = (e) => {
+  ordersSearchTerm = e.target.value.trim();
+  renderAdminOrders();
+  renderAdminAbandoned();
 });
 
 // ---------- Seed (first run only) ----------

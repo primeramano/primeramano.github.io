@@ -582,6 +582,30 @@ a.wa-btn{background:#25D366;}
 .bs-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .bs-count{flex:none;color:var(--gold-light);font-weight:700;font-size:.78rem;}
 
+/* Dashboard de pedidos: tarjetas de stats arriba de todo */
+.dash-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px;}
+.dash-stat{
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  padding:10px 12px;display:flex;flex-direction:column;gap:2px;
+}
+.dash-stat-num{font-size:1.15rem;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums;}
+.dash-stat-label{font-size:.7rem;color:var(--muted);font-weight:600;}
+.dash-stat-warn{border-color:#f3c1bb;background:#fff8f7;}
+.dash-stat-warn .dash-stat-num{color:#c0392b;}
+
+/* Sub-pestañas dentro de "Pedidos": Pedidos / Carritos abandonados */
+.pedidos-subnav{display:flex;gap:6px;margin-bottom:10px;}
+.pedidos-subtab{
+  flex:1;padding:8px 10px;border-radius:9px;border:1px solid var(--border);background:var(--surface);
+  font-size:.8rem;font-weight:700;color:var(--muted);display:flex;align-items:center;justify-content:center;gap:6px;
+}
+.pedidos-subtab.active{background:var(--brand);border-color:var(--brand);color:#fff;}
+.subtab-badge{
+  background:#c0392b;color:#fff;border-radius:999px;font-size:.68rem;font-weight:800;
+  min-width:17px;height:17px;padding:0 4px;display:inline-flex;align-items:center;justify-content:center;
+}
+.pedidos-subtab.active .subtab-badge{background:rgba(255,255,255,.3);}
+
 .orders-filter{margin-bottom:12px;}
 .orders-filter select{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface);font-size:.85rem;}
 .admin-order-row{padding:11px 0;border-bottom:1px solid var(--border);}
@@ -593,6 +617,13 @@ a.wa-btn{background:#25D366;}
 .admin-order-row .aor-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px;}
 .admin-order-row .aor-total{font-weight:700;font-size:.85rem;}
 .order-status-select{padding:6px 9px;border:1px solid var(--border);border-radius:7px;font-size:.78rem;background:var(--surface);}
+
+/* Carritos abandonados (con contacto) */
+.abandoned-row{border-left:3px solid #f0b429;padding-left:9px;}
+.wa-recover-btn{
+  display:inline-flex;align-items:center;gap:6px;background:#25D366;color:#fff;
+  border:none;border-radius:999px;padding:7px 13px;font-size:.78rem;font-weight:700;text-decoration:none;
+}
 
 .transfer-box{margin-top:14px;padding:12px 14px;border-radius:12px;background:#eef7f1;border:1px solid #cfe9d8;}
 .transfer-box-title{font-size:.8rem;font-weight:700;color:#1f8a4c;margin-bottom:6px;}
