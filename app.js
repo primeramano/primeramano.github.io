@@ -699,6 +699,20 @@ function renderHomeSections() {
 // el pedido — el carrito avisa cuánto falta para llegarlo.
 const MIN_ORDER = 40000;
 function minOrderMissing() { return Math.max(0, MIN_ORDER - cartTotal()); }
+// Barra de progreso visual hacia el pedido mínimo — refuerza con un % lleno
+// en vez de solo texto, y felicita cuando se llega (mejora conversión / ticket).
+function minOrderProgressHtml(total) {
+  const pct = Math.min(100, Math.round((total / MIN_ORDER) * 100));
+  const missing = minOrderMissing();
+  const reached = missing <= 0;
+  return `
+    <div class="min-progress ${reached ? "is-complete" : ""}">
+      <div class="min-progress-bar"><div class="min-progress-fill" style="width:${pct}%"></div></div>
+      <div class="min-progress-label">${reached
+        ? "✅ ¡Llegaste al pedido mínimo!"
+        : `Faltan <strong>${fmtARS(missing)}</strong> para el pedido mínimo (${pct}%)`}</div>
+    </div>`;
+}
 function cartLines() {
   return Object.entries(cart).map(([id, qty]) => ({ item: products[id], qty })).filter(l => l.item && l.qty > 0);
 }
@@ -727,10 +741,9 @@ function renderCart() {
   $("#fc-total").textContent = fmtARS(cartTotal());
   const fcMinNote = $("#fc-min-note");
   if (fcMinNote) {
-    const missing = minOrderMissing();
-    if (count > 0 && missing > 0) {
+    if (count > 0) {
       fcMinNote.hidden = false;
-      fcMinNote.textContent = `Faltan ${fmtARS(missing)} para el pedido mínimo`;
+      fcMinNote.innerHTML = minOrderProgressHtml(cartTotal());
     } else {
       fcMinNote.hidden = true;
     }
@@ -779,7 +792,7 @@ function renderCartDrawer() {
     const missing = minOrderMissing();
     const belowMin = lines.length > 0 && missing > 0;
     foot.innerHTML = `
-      ${belowMin ? `<div class="min-order-note">Te faltan <strong>${fmtARS(missing)}</strong> para llegar al pedido mínimo de ${fmtARS(MIN_ORDER)}</div>` : ""}
+      ${lines.length > 0 ? minOrderProgressHtml(cartTotal()) : ""}
       <div class="total-row"><span>Total</span><span>${fmtARS(cartTotal())}</span></div>
       <button class="wa-btn" id="cart-continue-btn" ${(lines.length === 0 || belowMin) ? "disabled" : ""}>Continuar</button>`;
     $("#cart-continue-btn").onclick = () => {
