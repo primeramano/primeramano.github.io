@@ -1768,14 +1768,43 @@ if ($("#migrate-images-btn")) { $("#migrate-images-btn").hidden = true; }
 
 // ---------- Admin product list ----------
 let adminSearchTerm = "";
+let adminCatFilter = "";
 $("#admin-search").oninput = (e) => { adminSearchTerm = e.target.value; refreshAdminProductList(); };
+$("#admin-cat-filter") && ($("#admin-cat-filter").onchange = (e) => { adminCatFilter = e.target.value; refreshAdminProductList(); });
+
+// El <select> de categorías del panel de admin se arma a partir de los
+// productos que ya existen (misma fuente que categoriesFromProducts(), que
+// ya usan los chips públicos) — así nunca queda desactualizado respecto al
+// catálogo real, sin tener que mantener una lista aparte a mano.
+function refreshAdminCatFilterOptions() {
+  const sel = $("#admin-cat-filter");
+  if (!sel) return;
+  const cats = categoriesFromProducts();
+  const current = sel.value;
+  sel.innerHTML = `<option value="">Todas las categorías</option>` +
+    cats.map(c => `<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`).join("");
+  // Si la categoría elegida ya no existe (se renombró/borró el último
+  // producto de esa categoría), volvemos a "todas" en vez de dejar el
+  // filtro roto mostrando una categoría fantasma.
+  if (cats.includes(current)) sel.value = current;
+  else adminCatFilter = "";
+}
+
 function refreshAdminProductList() {
   if (!$("#admin-drawer").classList.contains("open")) return;
+  refreshAdminCatFilterOptions();
   const term = adminSearchTerm.trim().toLowerCase();
   const list = Object.values(products)
     .filter(p => !term || (p.title || "").toLowerCase().includes(term))
+    .filter(p => !adminCatFilter || p.category === adminCatFilter)
     .sort((a, b) => (a.title || "").localeCompare(b.title || "", "es"));
   const wrap = $("#admin-product-list");
+  const countLabel = $("#admin-product-count");
+  if (countLabel) {
+    countLabel.textContent = adminCatFilter
+      ? `${list.length} producto${list.length === 1 ? "" : "s"} en "${adminCatFilter}"`
+      : `${list.length} producto${list.length === 1 ? "" : "s"}`;
+  }
   wrap.innerHTML = list.map(p => `
     <div class="admin-product-row" data-id="${p.id}">
       <img src="${p.img}" alt="">
@@ -1787,7 +1816,7 @@ function refreshAdminProductList() {
         <button data-edit title="Editar">✎</button>
         <button data-del title="Eliminar">🗑</button>
       </div>
-    </div>`).join("") || `<p style="color:var(--muted);font-size:.85rem;">Sin productos.</p>`;
+    </div>`).join("") || `<p style="color:var(--muted);font-size:.85rem;">Sin productos${adminCatFilter ? ` en "${escapeHtml(adminCatFilter)}"` : ""}.</p>`;
   wrap.querySelectorAll("[data-edit]").forEach(btn => {
     btn.onclick = () => openEditProduct(btn.closest(".admin-product-row").dataset.id);
   });
