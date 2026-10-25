@@ -945,7 +945,7 @@ function renderCartDrawer() {
     foot.innerHTML = `
       <div class="total-row"><span>Total estimado</span><span>${fmtARS(grandTotal)}</span></div>
       ${isMP
-        ? `<button type="button" id="mp-btn" class="wa-btn">Pagar con Mercado Pago 💳</button>`
+        ? `<button type="button" id="mp-btn" class="wa-btn mp-pay-btn">Pagar con Mercado Pago 💳</button>`
         : `<a id="wa-btn" class="wa-btn" href="${waOrderLink()}" target="_blank" rel="noopener">${checkoutData.pago === "transferencia" ? "PAGO SEGURO 🔒" : "Completar pedido en WhatsApp"}</a>`}
       <div class="trust-strip">
         <span>🔒 Compra 100% segura</span>

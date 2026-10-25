@@ -34,6 +34,8 @@
   --dark-deep:#000000;
   --trust-blue:#2458a4;
   --trust-blue-bg:#eaf1fb;
+  --mp-blue:#009ee3;
+  --mp-blue-dark:#0088c4;
   --danger:#c0392b;
   --danger-bg:#fdeeee;
   --danger-border:#f3c1bb;
@@ -429,6 +431,12 @@ input,select,textarea{font:inherit;}
 .wa-btn[disabled]{opacity:.45;pointer-events:none;}
 .wa-btn:not(a){background:var(--brand);}
 a.wa-btn{background:var(--wa);}
+/* Botón de Mercado Pago con SU propio celeste de marca, no el verde genérico
+   del resto del checkout — verlo con los colores reales de Mercado Pago es
+   una señal de autoridad "prestada" (Cialdini): el cerebro reconoce la marca
+   de pago real y confía más que en un botón verde cualquiera. */
+.mp-pay-btn{background:var(--mp-blue) !important;}
+.mp-pay-btn:active{background:var(--mp-blue-dark) !important;}
 
 /* Franja de confianza justo debajo del botón de pago — el momento de más
    fricción del checkout (Baymard: la ausencia de señales de seguridad ahí
