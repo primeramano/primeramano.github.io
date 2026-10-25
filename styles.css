@@ -427,7 +427,7 @@ a.wa-btn{background:#25D366;}
 /* ---------- Product modal ---------- */
 .pmodal-overlay{position:fixed;inset:0;background:rgba(10,10,10,.55);z-index:90;display:none;align-items:center;justify-content:center;padding:20px;}
 .pmodal-overlay.open{display:flex;}
-.pmodal{background:var(--surface);border-radius:18px;max-width:900px;width:100%;max-height:88vh;overflow:auto;display:grid;grid-template-columns:1fr 1fr;}
+.pmodal{background:var(--surface);border-radius:18px;max-width:900px;width:100%;max-height:88vh;overflow:auto;display:grid;grid-template-columns:1fr 1fr;min-width:0;}
 @media (max-width:680px){.pmodal{grid-template-columns:1fr;}}
 .pmodal .media{background:#f0f0ee;position:relative;height:420px;}
 @media (max-width:680px){.pmodal .media{height:320px;}}
@@ -438,17 +438,21 @@ a.wa-btn{background:#25D366;}
 .pmodal-dots{position:absolute;bottom:10px;left:0;right:0;display:flex;justify-content:center;gap:6px;pointer-events:none;}
 .pmodal-dots span{width:7px;height:7px;border-radius:999px;background:rgba(255,255,255,.65);border:1px solid rgba(0,0,0,.15);}
 .pmodal-dots span.active{background:var(--brand);border-color:var(--brand);}
-.pmodal .info{padding:26px;display:flex;flex-direction:column;gap:12px;}
+/* min-width:0 es necesario: sin esto, la fila de cross-sell (ancho fijo,
+   scroll propio) empuja todo el modal a desbordarse horizontalmente en
+   mobile, cortando título, precio y botón — bug clásico de flexbox. */
+.pmodal .info{padding:26px;display:flex;flex-direction:column;gap:12px;min-width:0;}
+@media (max-width:680px){.pmodal .info{padding:18px;gap:10px;}}
 .pmodal .cat{font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;color:var(--brand);font-weight:700;}
 .pmodal h2{margin:0;font-size:1.2rem;line-height:1.35;}
 .pmodal .price{font-size:1.6rem;font-weight:800;}
 .pmodal .desc{color:var(--muted);font-size:.9rem;line-height:1.5;white-space:pre-wrap;}
 /* ---------- Cross-sell en el modal de producto ---------- */
-.pmodal-xsell{margin-top:6px;padding-top:14px;border-top:1px solid var(--border);}
+.pmodal-xsell{margin-top:6px;padding-top:14px;border-top:1px solid var(--border);min-width:0;}
 .pmodal-xsell h4{font-size:.9rem;font-weight:800;margin:0 0 10px;letter-spacing:-.01em;}
 .pmodal-xsell-row{
   display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x proximity;
-  padding:2px 2px 6px;scrollbar-width:none;
+  padding:2px 2px 6px;scrollbar-width:none;min-width:0;
 }
 .pmodal-xsell-row::-webkit-scrollbar{display:none;}
 .xsell-card{
