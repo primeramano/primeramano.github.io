@@ -1264,6 +1264,60 @@ if ($("#orders-filter-estado")) {
 
 // ---------- Product modal (public detail view) ----------
 let modalQty = 1;
+// Cross-sell: productos de la misma categoría, priorizando los más vendidos.
+// Tarjetas chicas y livianas (sin stepper) para sumar al ticket sin salir del modal.
+function relatedProducts(p, limit = 8) {
+  if (!p || !p.category) return [];
+  const sameCat = Object.values(products).filter(x => x.id !== p.id && x.category === p.category);
+  const bestsellers = sameCat.filter(x => topSellerIds.has(x.id));
+  const rest = sameCat.filter(x => !topSellerIds.has(x.id));
+  return [...bestsellers, ...rest].slice(0, limit);
+}
+function xsellCardHTML(p) {
+  return `
+    <div class="xsell-card" data-id="${p.id}">
+      <div class="thumb-wrap" data-open="1">
+        <img src="${p.img}" alt="${escapeAttr(p.title)}" loading="lazy" decoding="async">
+      </div>
+      <div class="xsell-body">
+        <h5 data-open="1">${escapeHtml(p.title || "")}</h5>
+        <div class="xsell-price-row">
+          <span class="price">${fmtARS(p.price || 0)}</span>
+          <button class="xsell-add" data-add aria-label="Agregar">+</button>
+        </div>
+      </div>
+    </div>`;
+}
+function wireXsellCard(card) {
+  const id = card.dataset.id;
+  card.querySelectorAll("[data-open]").forEach(el => { el.onclick = () => openProductModal(id); });
+  card.querySelector("[data-add]").onclick = (e) => {
+    e.stopPropagation();
+    addToCart(id, 1);
+    const btn = e.currentTarget;
+    const original = btn.textContent;
+    btn.textContent = "✓";
+    btn.classList.add("just-added");
+    setTimeout(() => { btn.textContent = original; btn.classList.remove("just-added"); }, 900);
+    const fc = $("#floating-cart");
+    fc.classList.remove("fc-pulse");
+    void fc.offsetWidth;
+    fc.classList.add("fc-pulse");
+  };
+}
+function renderXsell(p) {
+  const wrap = $("#pmodal-xsell");
+  const row = $("#pmodal-xsell-row");
+  const related = relatedProducts(p);
+  if (!related.length) {
+    wrap.hidden = true;
+    row.innerHTML = "";
+    return;
+  }
+  wrap.hidden = false;
+  row.innerHTML = related.map(xsellCardHTML).join("");
+  row.querySelectorAll(".xsell-card").forEach(wireXsellCard);
+}
 function openProductModal(id) {
   const p = products[id];
   if (!p) return;
@@ -1305,6 +1359,7 @@ function openProductModal(id) {
   $("#pmodal-price").textContent = fmtARS(p.price || 0);
   $("#pmodal-desc").textContent = p.description || "";
   $("#pmodal-qty span").textContent = "1";
+  renderXsell(p);
   $("#pmodal-overlay").classList.add("open");
   $("#pmodal-overlay").dataset.id = id;
 }
