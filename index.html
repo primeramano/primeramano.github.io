@@ -203,6 +203,13 @@ src="https://www.facebook.com/tr?id=1021991960884965&ev=PageView&noscript=1"
 
   <!-- Pedidos tab (dashboard unificado: pedidos + carritos abandonados) -->
   <div class="admin-body" id="tab-pedidos" hidden>
+    <div class="period-filter" id="period-filter">
+      <button class="period-pill active" data-period="today">Hoy</button>
+      <button class="period-pill" data-period="7d">7 días</button>
+      <button class="period-pill" data-period="month">Este mes</button>
+      <button class="period-pill" data-period="30d">30 días</button>
+      <button class="period-pill" data-period="all">Todo</button>
+    </div>
     <div class="dash-stats" id="dash-stats"></div>
     <div class="bestsellers-summary" id="bestsellers-summary" hidden></div>
 

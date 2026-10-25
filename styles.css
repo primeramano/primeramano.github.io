@@ -570,6 +570,14 @@ a.wa-btn{background:#25D366;}
 .pill{display:inline-flex;align-items:center;gap:5px;font-size:.72rem;font-weight:700;padding:4px 9px;border-radius:999px;}
 .pill.ok{background:#e7f7ee;color:#1f8a4c;}
 .pill.warn{background:#fdeeee;color:#c0392b;}
+.pill.info{background:#eaf1fd;color:#1f5fb8;}
+.pill.muted{background:#eeeeec;color:var(--muted);}
+
+/* Pill de estado en cada tarjeta de pedido — permite distinguir de un vistazo
+   los que necesitan atención (nuevo/en proceso) de los ya resueltos. */
+.aor-status-pill{flex:none;}
+.admin-order-row.estado-nuevo{border-left:3px solid #1f5fb8;padding-left:9px;}
+.admin-order-row.estado-en_proceso{border-left:3px solid #e2a53a;padding-left:9px;}
 
 .bestsellers-summary{
   margin-bottom:16px;padding:12px 14px;border-radius:12px;
@@ -582,7 +590,16 @@ a.wa-btn{background:#25D366;}
 .bs-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .bs-count{flex:none;color:var(--gold-light);font-weight:700;font-size:.78rem;}
 
-/* Dashboard de pedidos: tarjetas de stats arriba de todo */
+/* Filtro de período del dashboard: Hoy / 7 días / Este mes / 30 días / Todo */
+.period-filter{display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;padding-bottom:2px;}
+.period-pill{
+  flex:0 0 auto;padding:7px 13px;border-radius:999px;border:1px solid var(--border);
+  background:var(--surface);font-size:.76rem;font-weight:700;color:var(--muted);white-space:nowrap;
+}
+.period-pill.active{background:var(--text);border-color:var(--text);color:#fff;}
+
+/* Dashboard de pedidos: tarjetas de stats arriba de todo. La facturación del
+   período es la métrica principal (toda la fila), el resto va en grilla de 2. */
 .dash-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px;}
 .dash-stat{
   background:var(--surface);border:1px solid var(--border);border-radius:12px;
@@ -592,6 +609,15 @@ a.wa-btn{background:#25D366;}
 .dash-stat-label{font-size:.7rem;color:var(--muted);font-weight:600;}
 .dash-stat-warn{border-color:#f3c1bb;background:#fff8f7;}
 .dash-stat-warn .dash-stat-num{color:#c0392b;}
+.dash-stat-hero{
+  grid-column:1 / -1;padding:16px 16px;border:none;
+  background:linear-gradient(135deg,var(--brand),var(--brand-dark));
+}
+.dash-stat-hero .dash-stat-num{color:#fff;font-size:1.7rem;}
+.dash-stat-hero .dash-stat-label{color:rgba(255,255,255,.85);}
+.dash-stat-delta{font-size:.72rem;font-weight:700;margin-top:3px;}
+.dash-stat-hero .dash-stat-delta.up{color:#bdf2d1;}
+.dash-stat-hero .dash-stat-delta.down{color:#ffd1cc;}
 
 /* Sub-pestañas dentro de "Pedidos": Pedidos / Carritos abandonados */
 .pedidos-subnav{display:flex;gap:6px;margin-bottom:10px;}

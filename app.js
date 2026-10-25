@@ -1191,20 +1191,83 @@ function renderAdminAbandoned() {
   }).join("");
 }
 
-// ---------- Dashboard: stats arriba de "Pedidos" ----------
+// ---------- Dashboard: filtro de período + stats arriba de "Pedidos" ----------
+// "today" | "7d" | "month" | "30d" | "all"
+let dashPeriod = "today";
+
+// Devuelve el inicio del período elegido y, cuando aplica, el rango
+// equivalente inmediatamente anterior (para calcular la variación % de
+// facturación contra ese mismo período anterior — p.ej. "esta semana" vs
+// "la semana pasada"). "Todo" no tiene período anterior con el que comparar.
+function periodRange(period) {
+  const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
+  const DAY = 24 * 60 * 60 * 1000;
+  if (period === "today") {
+    const prevStart = new Date(startOfToday.getTime() - DAY);
+    return { start: startOfToday, prevStart, prevEnd: startOfToday };
+  }
+  if (period === "7d") {
+    const start = new Date(startOfToday.getTime() - 6 * DAY);
+    const prevStart = new Date(start.getTime() - 7 * DAY);
+    return { start, prevStart, prevEnd: start };
+  }
+  if (period === "30d") {
+    const start = new Date(startOfToday.getTime() - 29 * DAY);
+    const prevStart = new Date(start.getTime() - 30 * DAY);
+    return { start, prevStart, prevEnd: start };
+  }
+  if (period === "month") {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const prevStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    return { start, prevStart, prevEnd: start };
+  }
+  return { start: null, prevStart: null, prevEnd: null }; // "all"
+}
+
 function renderDashStats() {
   const box = $("#dash-stats");
   if (!box) return;
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const isToday = (ts) => { try { return ts && ts.toDate && ts.toDate() >= today; } catch (e) { return false; } };
-  const ordersToday = orders.filter(o => isToday(o.createdAt));
-  const entregadoHoy = ordersToday.filter(o => o.estado === "entregado").reduce((s, o) => s + (o.total || 0), 0);
+  const { start, prevStart, prevEnd } = periodRange(dashPeriod);
+  const toDate = (ts) => { try { return ts && ts.toDate ? ts.toDate() : null; } catch (e) { return null; } };
+  const inRange = (d, from, to) => !!d && (!from || d >= from) && (!to || d < to);
+
+  const ordersInPeriod = orders.filter(o => start ? inRange(toDate(o.createdAt), start, null) : true);
+  const entregadosPeriodo = ordersInPeriod.filter(o => o.estado === "entregado");
+  const facturacion = entregadosPeriodo.reduce((s, o) => s + (o.total || 0), 0);
+  const ticketProm = entregadosPeriodo.length ? facturacion / entregadosPeriodo.length : 0;
+
+  // Variación % de facturación vs. el período anterior equivalente — da
+  // contexto real ("¿vendí más o menos que la semana pasada?") en vez de
+  // mostrar un número suelto sin referencia.
+  let deltaHtml = "";
+  if (prevStart) {
+    const facturacionAnterior = orders
+      .filter(o => o.estado === "entregado" && inRange(toDate(o.createdAt), prevStart, prevEnd))
+      .reduce((s, o) => s + (o.total || 0), 0);
+    if (facturacionAnterior > 0) {
+      const pct = Math.round(((facturacion - facturacionAnterior) / facturacionAnterior) * 100);
+      deltaHtml = `<span class="dash-stat-delta ${pct >= 0 ? "up" : "down"}">${pct >= 0 ? "▲" : "▼"} ${Math.abs(pct)}% vs período anterior</span>`;
+    } else if (facturacion > 0) {
+      deltaHtml = `<span class="dash-stat-delta up">▲ Sin ventas en el período anterior</span>`;
+    }
+  }
+
+  // Pendientes y carritos abandonados son el "a hacer" de ahora mismo —
+  // se muestran siempre completos, sin recortar por el filtro de período,
+  // para que nunca se pierda de vista un pedido viejo sin resolver.
   const pendientes = orders.filter(o => (o.estado || "nuevo") === "nuevo" || o.estado === "en_proceso").length;
   const abandonados = abandonedCarts().length;
+
   box.innerHTML = `
-    <div class="dash-stat"><span class="dash-stat-num">${ordersToday.length}</span><span class="dash-stat-label">Pedidos hoy</span></div>
-    <div class="dash-stat"><span class="dash-stat-num">${fmtARS(entregadoHoy)}</span><span class="dash-stat-label">Entregado hoy</span></div>
-    <div class="dash-stat"><span class="dash-stat-num">${pendientes}</span><span class="dash-stat-label">Pedidos pendientes</span></div>
+    <div class="dash-stat dash-stat-hero">
+      <span class="dash-stat-num">${fmtARS(facturacion)}</span>
+      <span class="dash-stat-label">Facturación entregada</span>
+      ${deltaHtml}
+    </div>
+    <div class="dash-stat"><span class="dash-stat-num">${ordersInPeriod.length}</span><span class="dash-stat-label">Pedidos</span></div>
+    <div class="dash-stat"><span class="dash-stat-num">${fmtARS(ticketProm)}</span><span class="dash-stat-label">Ticket promedio</span></div>
+    <div class="dash-stat${pendientes > 0 ? " dash-stat-warn" : ""}"><span class="dash-stat-num">${pendientes}</span><span class="dash-stat-label">Pendientes (ahora)</span></div>
     <div class="dash-stat${abandonados > 0 ? " dash-stat-warn" : ""}"><span class="dash-stat-num">${abandonados}</span><span class="dash-stat-label">Carritos abandonados</span></div>`;
 }
 
@@ -1230,12 +1293,18 @@ function renderAdminOrders() {
       ? `${escapeHtml(o.entreCalles || "")}, ${escapeHtml(o.localidad || "")}, ${escapeHtml(o.provincia || "")} (${escapeHtml(o.cp || "")})`
       : "Retiro en el lugar (Banfield Centro)";
     const waNum = (o.telefono || "").replace(/\D/g, "");
+    const estado = o.estado || "nuevo";
+    // Pill de color + borde lateral: para ver de un vistazo, sin leer el
+    // select, cuáles pedidos están todavía activos (nuevo/en proceso) y
+    // cuáles ya se resolvieron (entregado/cancelado).
+    const estadoPillClass = estado === "entregado" ? "ok" : estado === "cancelado" ? "muted" : estado === "en_proceso" ? "warn" : "info";
     return `
-      <div class="admin-order-row" data-id="${o.id}">
+      <div class="admin-order-row estado-${estado}" data-id="${o.id}">
         <div class="aor-head">
           <b>${escapeHtml(o.nombre || "Sin nombre")}</b>
           <span class="aor-date">${fmtOrderDate(o.createdAt)}</span>
         </div>
+        <div style="margin-top:4px;"><span class="pill ${estadoPillClass} aor-status-pill">${ESTADO_LABELS[estado] || estado}</span></div>
         <div class="aor-items">${items}</div>
         <div class="aor-meta">
           ${pagoLabel(o.pago)} · ${dirLinea}${o.envio ? ` · Envío: ${fmtARS(o.envio)}` : ""}
@@ -1667,6 +1736,16 @@ $("#orders-search") && ($("#orders-search").oninput = (e) => {
   ordersSearchTerm = e.target.value.trim();
   renderAdminOrders();
   renderAdminAbandoned();
+});
+
+// Filtro de período del dashboard (Hoy / 7 días / Este mes / 30 días / Todo).
+$$(".period-pill").forEach(btn => {
+  btn.onclick = () => {
+    $$(".period-pill").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    dashPeriod = btn.dataset.period;
+    renderDashStats();
+  };
 });
 
 // ---------- Seed (first run only) ----------
