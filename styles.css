@@ -1,16 +1,42 @@
 :root{
-  --brand:#1f8a4c;
-  --brand-dark:#166b3a;
-  --bg:#f7f7f5;
+  /* ---------- Paleta estratégica ----------
+     Verde más profundo y menos "neón" que antes: en checkout/ecommerce el
+     verde comunica "aprobado / seguro / adelante" (semáforo, botón de
+     confirmar) — Baymard Institute lo encuentra entre los colores de CTA
+     con mejor conversión — pero un verde más saturado lee como genérico
+     de app. Este tono (más cerca de un verde botella) es el mismo que ya
+     tenían el logo y la portada, solo afinado para verse más "marca
+     establecida" y menos "plantilla".
+     El dorado queda igual: es la firma visual de Primera Mano (logo,
+     portada, bestsellers) y se usa SOLO para momentos de jerarquía alta
+     (más vendido, botón "agregado", carrito flotante) — nunca como color
+     base, para que no pierda fuerza por sobreuso.
+     Azul nuevo, de uso muy acotado: es el color que el cerebro asocia con
+     bancos/pagos (Mercado Pago, Visa, PayPal lo usan) — Cialdini lo
+     llamaría una señal de "autoridad" prestada. Se usa solo en el
+     micro-mensaje de pago seguro del checkout, nunca en botones de acción
+     normales, para no competir con el verde como color de "hacer click". */
+  --brand:#176b3c;
+  --brand-dark:#0f4f2c;
+  --brand-soft:#e7f3ec;
+  --bg:#f8f7f3;
   --surface:#ffffff;
-  --text:#17181a;
-  --muted:#6b7075;
-  --border:#e7e7e4;
-  --wa:#22c35e;
+  --text:#191b17;
+  --muted:#6b6f67;
+  --border:#e8e6df;
+  --wa:#25D366;
   --hiw-num:#FFD700;
   --hiw-num-text:#111111;
   --gold:#C9A227;
   --gold-light:#E4C765;
+  --ink-on-gold:#1a1400;
+  --dark:#1c1c1c;
+  --dark-deep:#000000;
+  --trust-blue:#2458a4;
+  --trust-blue-bg:#eaf1fb;
+  --danger:#c0392b;
+  --danger-bg:#fdeeee;
+  --danger-border:#f3c1bb;
   --radius:14px;
   --shadow:0 1px 3px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.05);
   --topbar-h:64px;
@@ -234,7 +260,7 @@ input,select,textarea{font:inherit;}
 }
 .bestseller-badge{
   position:absolute;top:6px;left:6px;background:linear-gradient(135deg,var(--gold-light),var(--gold));
-  color:#1a1400;font-size:.66rem;font-weight:800;padding:4px 8px;border-radius:999px;
+  color:var(--ink-on-gold);font-size:.66rem;font-weight:800;padding:4px 8px;border-radius:999px;
   box-shadow:0 2px 6px rgba(0,0,0,.25);letter-spacing:.01em;
 }
 .card .body{padding:10px 12px 12px;display:flex;flex-direction:column;gap:6px;flex:1;}
@@ -251,7 +277,7 @@ input,select,textarea{font:inherit;}
   font-size:.82rem;font-weight:700;padding:0 10px;height:32px;white-space:nowrap;
 }
 .add-btn:active{background:var(--brand-dark);}
-.add-btn.just-added{background:var(--gold);color:#1a1400;transition:background .15s;}
+.add-btn.just-added{background:var(--gold);color:var(--ink-on-gold);transition:background .15s;}
 /* En tarjetas angostas (celular) el stepper y el botón nunca se amontonan ni se cortan:
    el stepper ocupa su fila completa y "Agregar" pasa a la siguiente, ambos a ancho completo. */
 @media (max-width:480px){
@@ -325,7 +351,7 @@ input,select,textarea{font:inherit;}
    del negro plano genérico que tenía antes. */
 .floating-cart button{
   display:flex;align-items:center;gap:10px;
-  background:linear-gradient(135deg,#1c1c1c,#000);color:#fff;
+  background:linear-gradient(135deg,var(--dark),var(--dark-deep));color:#fff;
   border:1px solid rgba(201,162,39,.55);border-radius:999px;padding:12px 18px 12px 16px;
   box-shadow:0 8px 24px rgba(0,0,0,.35),0 0 0 1px rgba(201,162,39,.1) inset;
   font-weight:700;font-size:.88rem;transition:transform .15s;
@@ -355,7 +381,7 @@ input,select,textarea{font:inherit;}
   transition:width .35s ease;
 }
 .min-progress-label{
-  margin-top:5px;text-align:center;font-size:.72rem;font-weight:700;color:#c0392b;
+  margin-top:5px;text-align:center;font-size:.72rem;font-weight:700;color:var(--danger);
 }
 .min-progress-label strong{font-weight:800;}
 .min-progress.is-complete .min-progress-fill{background:var(--brand);}
@@ -392,17 +418,29 @@ input,select,textarea{font:inherit;}
 .cart-line .info{flex:1;min-width:0;}
 .cart-line .info h4{margin:0 0 4px;font-size:.85rem;font-weight:600;}
 .cart-line .info .p{font-size:.8rem;color:var(--muted);}
-.cart-line .remove{border:none;background:none;color:#c0392b;font-size:.78rem;text-decoration:underline;}
+.cart-line .remove{border:none;background:none;color:var(--danger);font-size:.78rem;text-decoration:underline;}
 .drawer-foot{padding:16px 20px;border-top:1px solid var(--border);}
 .total-row{display:flex;justify-content:space-between;font-weight:700;font-size:1rem;margin-bottom:12px;}
 .wa-btn{
   display:flex;align-items:center;justify-content:center;gap:8px;width:100%;
-  background:#25D366;color:#fff;border:none;border-radius:999px;padding:13px;
+  background:var(--wa);color:#fff;border:none;border-radius:999px;padding:13px;
   font-weight:700;font-size:.95rem;text-decoration:none;
 }
 .wa-btn[disabled]{opacity:.45;pointer-events:none;}
 .wa-btn:not(a){background:var(--brand);}
-a.wa-btn{background:#25D366;}
+a.wa-btn{background:var(--wa);}
+
+/* Franja de confianza justo debajo del botón de pago — el momento de más
+   fricción del checkout (Baymard: la ausencia de señales de seguridad ahí
+   es la causa #1 de abandono que SÍ se puede arreglar con diseño). Usa el
+   azul "banco/pago" a propósito: es un color que no aparece en ningún otro
+   botón del sitio, así se lee como una garantía objetiva y no como parte
+   de la marca vendiendo algo. */
+.trust-strip{
+  display:flex;flex-wrap:wrap;justify-content:center;gap:6px 14px;margin-top:10px;
+  padding:8px 10px;border-radius:10px;background:var(--trust-blue-bg);
+}
+.trust-strip span{font-size:.7rem;font-weight:600;color:var(--trust-blue);white-space:nowrap;}
 
 /* ---------- Checkout form (step 2) ---------- */
 .radio-group{display:flex;flex-direction:column;gap:8px;}
@@ -473,7 +511,7 @@ a.wa-btn{background:#25D366;}
   width:24px;height:24px;border-radius:7px;background:var(--brand);color:#fff;border:none;
   font-size:.95rem;font-weight:800;flex:none;line-height:1;
 }
-.xsell-add.just-added{background:var(--gold);color:#1a1400;}
+.xsell-add.just-added{background:var(--gold);color:var(--ink-on-gold);}
 .pmodal-close{
   position:absolute;top:14px;right:14px;background:rgba(0,0,0,.5);color:#fff;
   border:none;width:32px;height:32px;border-radius:999px;font-size:1rem;
@@ -557,7 +595,7 @@ a.wa-btn{background:#25D366;}
 }
 .btn{padding:10px 16px;border-radius:9px;border:1px solid var(--border);background:var(--surface);font-weight:700;font-size:.86rem;}
 .btn-primary{background:var(--brand);border-color:var(--brand);color:#fff;}
-.btn-danger{background:#fff5f4;border-color:#f3c1bb;color:#c0392b;}
+.btn-danger{background:var(--danger-bg);border-color:var(--danger-border);color:var(--danger);}
 .btn-row{display:flex;gap:10px;margin-top:16px;}
 .admin-product-row{display:flex;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);}
 .admin-product-row img{width:42px;height:42px;border-radius:7px;object-fit:cover;flex:none;}
@@ -569,7 +607,7 @@ a.wa-btn{background:#25D366;}
 .admin-search{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:9px;margin-bottom:10px;}
 .pill{display:inline-flex;align-items:center;gap:5px;font-size:.72rem;font-weight:700;padding:4px 9px;border-radius:999px;}
 .pill.ok{background:#e7f7ee;color:#1f8a4c;}
-.pill.warn{background:#fdeeee;color:#c0392b;}
+.pill.warn{background:var(--danger-bg);color:var(--danger);}
 .pill.info{background:#eaf1fd;color:#1f5fb8;}
 .pill.muted{background:#eeeeec;color:var(--muted);}
 
@@ -581,12 +619,12 @@ a.wa-btn{background:#25D366;}
 
 .bestsellers-summary{
   margin-bottom:16px;padding:12px 14px;border-radius:12px;
-  background:linear-gradient(135deg,#1c1c1c,#000);color:#fff;
+  background:linear-gradient(135deg,var(--dark),var(--dark-deep));color:#fff;
 }
 .bestsellers-title{font-size:.78rem;font-weight:700;color:var(--gold-light);margin-bottom:8px;}
 .bestsellers-row{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:.82rem;border-top:1px solid rgba(255,255,255,.08);}
 .bestsellers-row:first-child{border-top:none;}
-.bs-rank{flex:none;width:18px;height:18px;border-radius:50%;background:var(--gold);color:#1a1400;font-size:.68rem;font-weight:800;display:flex;align-items:center;justify-content:center;}
+.bs-rank{flex:none;width:18px;height:18px;border-radius:50%;background:var(--gold);color:var(--ink-on-gold);font-size:.68rem;font-weight:800;display:flex;align-items:center;justify-content:center;}
 .bs-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .bs-count{flex:none;color:var(--gold-light);font-weight:700;font-size:.78rem;}
 
@@ -607,8 +645,8 @@ a.wa-btn{background:#25D366;}
 }
 .dash-stat-num{font-size:1.15rem;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums;}
 .dash-stat-label{font-size:.7rem;color:var(--muted);font-weight:600;}
-.dash-stat-warn{border-color:#f3c1bb;background:#fff8f7;}
-.dash-stat-warn .dash-stat-num{color:#c0392b;}
+.dash-stat-warn{border-color:var(--danger-border);background:#fff8f7;}
+.dash-stat-warn .dash-stat-num{color:var(--danger);}
 .dash-stat-hero{
   grid-column:1 / -1;padding:16px 16px;border:none;
   background:linear-gradient(135deg,var(--brand),var(--brand-dark));
@@ -627,7 +665,7 @@ a.wa-btn{background:#25D366;}
 }
 .pedidos-subtab.active{background:var(--brand);border-color:var(--brand);color:#fff;}
 .subtab-badge{
-  background:#c0392b;color:#fff;border-radius:999px;font-size:.68rem;font-weight:800;
+  background:var(--danger);color:#fff;border-radius:999px;font-size:.68rem;font-weight:800;
   min-width:17px;height:17px;padding:0 4px;display:inline-flex;align-items:center;justify-content:center;
 }
 .pedidos-subtab.active .subtab-badge{background:rgba(255,255,255,.3);}
@@ -647,7 +685,7 @@ a.wa-btn{background:#25D366;}
 /* Carritos abandonados (con contacto) */
 .abandoned-row{border-left:3px solid #f0b429;padding-left:9px;}
 .wa-recover-btn{
-  display:inline-flex;align-items:center;gap:6px;background:#25D366;color:#fff;
+  display:inline-flex;align-items:center;gap:6px;background:var(--wa);color:#fff;
   border:none;border-radius:999px;padding:7px 13px;font-size:.78rem;font-weight:700;text-decoration:none;
 }
 
@@ -663,7 +701,7 @@ a.wa-btn{background:#25D366;}
 }
 .toast.show{opacity:1;transform:translateX(-50%) translateY(-6px);}
 .toast.toast-ok{background:#1f8a4c;}
-.toast.toast-error{background:#c0392b;border-radius:14px;}
+.toast.toast-error{background:var(--danger);border-radius:14px;}
 
 /* ---------- Footer ---------- */
 .site-footer{

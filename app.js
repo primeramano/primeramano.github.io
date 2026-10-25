@@ -946,7 +946,12 @@ function renderCartDrawer() {
       <div class="total-row"><span>Total estimado</span><span>${fmtARS(grandTotal)}</span></div>
       ${isMP
         ? `<button type="button" id="mp-btn" class="wa-btn">Pagar con Mercado Pago 💳</button>`
-        : `<a id="wa-btn" class="wa-btn" href="${waOrderLink()}" target="_blank" rel="noopener">${checkoutData.pago === "transferencia" ? "PAGO SEGURO 🔒" : "Completar pedido en WhatsApp"}</a>`}`;
+        : `<a id="wa-btn" class="wa-btn" href="${waOrderLink()}" target="_blank" rel="noopener">${checkoutData.pago === "transferencia" ? "PAGO SEGURO 🔒" : "Completar pedido en WhatsApp"}</a>`}
+      <div class="trust-strip">
+        <span>🔒 Compra 100% segura</span>
+        <span>✅ Garantía de cambio</span>
+        <span>💬 Soporte directo por WhatsApp</span>
+      </div>`;
     if ($("#transfer-copy-btn")) {
       $("#transfer-copy-btn").onclick = () => {
         navigator.clipboard.writeText(settings.transferMessage)
