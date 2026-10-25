@@ -109,19 +109,35 @@ input,select,textarea{font:inherit;}
   .hero h1{font-size:2.6rem;}
   .hero p{font-size:1rem;margin-bottom:16px;}
 }
-.trust-row{display:flex;flex-wrap:wrap;gap:10px;}
+/* Mobile-first: grilla fluida de 2 columnas, texto centrado y compacto —
+   evita que cada badge ocupe una fila entera en pantallas chicas. A partir
+   de 720px pasa a fila libre (flex-wrap) como chips en una línea. */
+.trust-row{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;
+}
 .trust-item{
-  display:inline-flex;align-items:center;gap:5px;
+  display:flex;align-items:center;justify-content:center;gap:5px;
   background:var(--surface);border:1px solid var(--border);
-  padding:7px 12px;border-radius:999px;font-size:.8rem;font-weight:600;color:var(--text);
+  padding:8px 10px;border-radius:12px;font-size:.72rem;font-weight:600;color:var(--text);
+  text-align:center;line-height:1.25;
 }
 .trust-item strong{color:var(--brand);}
 /* Badge de prueba social — mismo molde que los demás pero con un borde/fondo
-   verde suave para que resalte un poco más (es el que más empuja confianza). */
+   verde suave para que resalte más (es el que más empuja confianza), y ocupa
+   las dos columnas en mobile para destacarlo del resto. */
 .trust-item-social{
+  grid-column:1 / -1;
   background:rgba(31,138,76,.08);border-color:rgba(31,138,76,.35);color:var(--brand-dark);
 }
 .trust-item-social strong{color:var(--brand-dark);}
+@media (min-width:480px){
+  .trust-item{font-size:.78rem;padding:8px 12px;}
+}
+@media (min-width:720px){
+  .trust-row{display:flex;flex-wrap:wrap;gap:10px;}
+  .trust-item{border-radius:999px;padding:7px 12px;font-size:.8rem;text-align:left;}
+  .trust-item-social{grid-column:auto;}
+}
 
 /* ---------- How it works ---------- */
 .how-it-works{
