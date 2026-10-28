@@ -588,23 +588,28 @@ function categorySections(previewCount = 6) {
 }
 function cardHTML(p, priority) {
   const loadAttrs = priority ? `loading="eager" fetchpriority="high"` : `loading="lazy" fetchpriority="low"`;
+  const outOfStock = p.stock === false;
   return `
-    <div class="card" data-id="${p.id}">
+    <div class="card${outOfStock ? " out-of-stock" : ""}" data-id="${p.id}">
       <div class="thumb-wrap" data-open="1">
         <img src="${p.img}" alt="${escapeAttr(p.title)}" ${loadAttrs} decoding="async">
-        ${topSellerIds.has(p.id) ? `<span class="bestseller-badge">🔥 Más vendido</span>` : ""}
+        ${outOfStock ? `<span class="soldout-badge">Sin stock</span>` : topSellerIds.has(p.id) ? `<span class="bestseller-badge">🔥 Más vendido</span>` : ""}
         ${isAdmin ? `<button class="admin-edit-mini" data-edit="${p.id}">✎</button>` : ""}
       </div>
       <div class="body">
         <span class="cat">${escapeHtml(p.category || "")}</span>
         <h3 data-open="1">${escapeHtml(p.title || "")}</h3>
         <div class="price">${fmtARS(p.price || 0)}</div>
+        ${outOfStock ? `
+        <div class="add-row">
+          <button class="add-btn" disabled>Sin stock</button>
+        </div>` : `
         <div class="add-row">
           <div class="qty-stepper" data-qty>
             <button data-d="-1">−</button><span>1</span><button data-d="1">+</button>
           </div>
           <button class="add-btn" data-add>Agregar</button>
-        </div>
+        </div>`}
       </div>
     </div>`;
 }
@@ -615,27 +620,32 @@ let __renderToken = 0;
 function wireCard(card) {
   const id = card.dataset.id;
   const stepper = card.querySelector("[data-qty]");
-  let localQty = 1;
-  stepper.querySelectorAll("button").forEach(b => {
-    b.onclick = () => {
-      localQty = Math.max(1, localQty + parseInt(b.dataset.d, 10));
-      stepper.querySelector("span").textContent = localQty;
-    };
-  });
-  card.querySelector("[data-add]").onclick = () => {
-    addToCart(id, localQty);
-    localQty = 1;
-    stepper.querySelector("span").textContent = 1;
-    const addBtn = card.querySelector("[data-add]");
-    const original = addBtn.textContent;
-    addBtn.textContent = "✓ Agregado";
-    addBtn.classList.add("just-added");
-    setTimeout(() => { addBtn.textContent = original; addBtn.classList.remove("just-added"); }, 900);
-    const fc = $("#floating-cart");
-    fc.classList.remove("fc-pulse");
-    void fc.offsetWidth; // reinicia la animación aunque se clickee seguido
-    fc.classList.add("fc-pulse");
-  };
+  if (stepper) {
+    let localQty = 1;
+    stepper.querySelectorAll("button").forEach(b => {
+      b.onclick = () => {
+        localQty = Math.max(1, localQty + parseInt(b.dataset.d, 10));
+        stepper.querySelector("span").textContent = localQty;
+      };
+    });
+    const addBtnEl = card.querySelector("[data-add]");
+    if (addBtnEl) {
+      addBtnEl.onclick = () => {
+        addToCart(id, localQty);
+        localQty = 1;
+        stepper.querySelector("span").textContent = 1;
+        const addBtn = card.querySelector("[data-add]");
+        const original = addBtn.textContent;
+        addBtn.textContent = "✓ Agregado";
+        addBtn.classList.add("just-added");
+        setTimeout(() => { addBtn.textContent = original; addBtn.classList.remove("just-added"); }, 900);
+        const fc = $("#floating-cart");
+        fc.classList.remove("fc-pulse");
+        void fc.offsetWidth; // reinicia la animación aunque se clickee seguido
+        fc.classList.add("fc-pulse");
+      };
+    }
+  }
   card.querySelectorAll("[data-open]").forEach(el => {
     el.onclick = () => openProductModal(id);
   });
@@ -1403,7 +1413,7 @@ let modalQty = 1;
 // Tarjetas chicas y livianas (sin stepper) para sumar al ticket sin salir del modal.
 function relatedProducts(p, limit = 8) {
   if (!p || !p.category) return [];
-  const sameCat = Object.values(products).filter(x => x.id !== p.id && x.category === p.category);
+  const sameCat = Object.values(products).filter(x => x.id !== p.id && x.category === p.category && x.stock !== false);
   const bestsellers = sameCat.filter(x => topSellerIds.has(x.id));
   const rest = sameCat.filter(x => !topSellerIds.has(x.id));
   return [...bestsellers, ...rest].slice(0, limit);
@@ -1428,6 +1438,8 @@ function wireXsellCard(card) {
   card.querySelectorAll("[data-open]").forEach(el => { el.onclick = () => openProductModal(id); });
   card.querySelector("[data-add]").onclick = (e) => {
     e.stopPropagation();
+    const xp = products[id];
+    if (xp && xp.stock === false) return;
     addToCart(id, 1);
     const btn = e.currentTarget;
     const original = btn.textContent;
@@ -1494,6 +1506,11 @@ function openProductModal(id) {
   $("#pmodal-price").textContent = fmtARS(p.price || 0);
   $("#pmodal-desc").textContent = p.description || "";
   $("#pmodal-qty span").textContent = "1";
+  const outOfStock = p.stock === false;
+  $("#pmodal-qty").hidden = outOfStock;
+  const addBtn = $("#pmodal-add");
+  addBtn.disabled = outOfStock;
+  addBtn.textContent = outOfStock ? "Sin stock" : "Agregar al pedido";
   renderXsell(p);
   $("#pmodal-overlay").classList.add("open");
   $("#pmodal-overlay").dataset.id = id;
@@ -2084,6 +2101,8 @@ $("#pmodal-qty").querySelectorAll("button").forEach(b => {
 $("#pmodal-add").onclick = () => {
   const id = $("#pmodal-overlay").dataset.id;
   if (!id) return;
+  const p = products[id];
+  if (p && p.stock === false) return;
   addToCart(id, modalQty);
   closeProductModal();
   toast("Agregado al pedido");
