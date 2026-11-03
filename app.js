@@ -209,7 +209,7 @@ async function pushOrderToSheet(order) {
         cliente: order.nombre || "",
         contacto: order.telefono || "",
         metodoPago: pagoLabel(order.pago),
-        entrega: order.entrega === "retiro" ? "Retiro en el lugar (Banfield Centro)" : "Envío a domicilio",
+        entrega: order.entrega === "retiro" ? "Retiro en el lugar (Banfield Centro)" : order.entrega === "sucursal" ? `Retiro en sucursal de Andreani (${order.sucursal || ""})` : "Envío a domicilio (Andreani)",
         notas: order.notas || "",
         items: (order.items && order.items.length ? order.items : [{ title: "", qty: "", price: "" }])
           .map(it => ({ producto: it.title, cantidad: it.qty, precioUnit: it.price })),
@@ -278,7 +278,7 @@ if (!cartVisitorId) {
 }
 
 let cartStep = "items"; // "items" | "form" | "summary"
-let checkoutData = { nombre: "", pago: "", entrega: "", entreCalles: "", localidad: "", provincia: "", cp: "", telefono: "", dni: "", notas: "" };
+let checkoutData = { nombre: "", pago: "", entrega: "", entreCalles: "", localidad: "", provincia: "", cp: "", sucursal: "", telefono: "", dni: "", notas: "" };
 
 // ---------- Helpers ----------
 const $ = (sel) => document.querySelector(sel);
@@ -287,21 +287,18 @@ function fmtARS(n) { return "$" + Math.round(n).toLocaleString("es-AR"); }
 function pagoLabel(pago) {
   return pago === "efectivo" ? "EFECTIVO/CONTRA-ENTREGA" : pago === "mercadopago" ? "Mercado Pago" : "Transferencia";
 }
-// Costo de envío fijo por zona (reparto propio CABA+GBA). Con Mercado Pago
-// el costo se cobra siempre, sin importar el método de entrega (incluso
-// retiro en el lugar). Para efectivo y transferencia, retiro en el lugar
-// no tiene costo. Varía según forma de pago porque cada uno tiene distinto
-// costo operativo para el negocio.
+// Costo de envío por Andreani, fijo según método de entrega (no depende de
+// la forma de pago): envío a domicilio $9.000, retiro en sucursal de
+// Andreani más cercana $7.900. Retiro en el lugar (Banfield Centro) sigue
+// sin costo.
 function shippingCost(pago, entrega) {
-  if (pago === "mercadopago") return 8500;
-  if (entrega !== "domicilio") return 0;
-  if (pago === "efectivo") return 5000;
-  if (pago === "transferencia") return 8000;
+  if (entrega === "domicilio") return 9000;
+  if (entrega === "sucursal") return 7900;
   return 0;
 }
 // Etiqueta del cargo de envío/entrega mostrado en el resumen y en WhatsApp.
 function envioLabel(pago, entrega) {
-  return entrega === "domicilio" ? "Envío a domicilio" : "Cargo Mercado Pago";
+  return entrega === "domicilio" ? "Envío a domicilio (Andreani)" : entrega === "sucursal" ? "Retiro en sucursal de Andreani" : "Envío";
 }
 function toast(msg, kind = "ok") {
   const t = $("#toast");
@@ -854,7 +851,8 @@ function renderCartDrawer() {
         <label>Método de entrega *</label>
         <div class="radio-group">
           <label class="radio-opt"><input type="radio" name="co-entrega" value="retiro" ${d.entrega === "retiro" ? "checked" : ""}> Retiro en el lugar (Banfield Centro)<span class="hint">Sin costo</span></label>
-          <label class="radio-opt"><input type="radio" name="co-entrega" value="domicilio" ${d.entrega === "domicilio" ? "checked" : ""}> Envío a domicilio<span class="hint">Costo fijo según forma de pago, se suma al total</span></label>
+          <label class="radio-opt"><input type="radio" name="co-entrega" value="domicilio" ${d.entrega === "domicilio" ? "checked" : ""}> Envío a domicilio (Andreani)<span class="hint">Costo $9.000, se suma al total</span></label>
+          <label class="radio-opt"><input type="radio" name="co-entrega" value="sucursal" ${d.entrega === "sucursal" ? "checked" : ""}> Retiro en sucursal de Andreani<span class="hint">Costo $7.900 · elegís la sucursal más cercana a tu domicilio</span></label>
         </div>
       </div>
       <div id="co-address-fields" ${d.entrega === "domicilio" ? "" : "hidden"}>
@@ -877,6 +875,12 @@ function renderCartDrawer() {
           <input type="text" id="co-cp" value="${escapeAttr(d.cp)}" maxlength="20">
         </div>
       </div>
+      <div id="co-sucursal-field" ${d.entrega === "sucursal" ? "" : "hidden"}>
+        <div class="field">
+          <label>Sucursal de Andreani más cercana *</label>
+          <input type="text" id="co-sucursal" value="${escapeAttr(d.sucursal)}" maxlength="70" placeholder="Ej: Andreani Banfield, Av. ...">
+        </div>
+      </div>
       <div class="field">
         <label>Teléfono *</label>
         <input type="text" id="co-telefono" value="${escapeAttr(d.telefono)}" maxlength="30">
@@ -890,7 +894,11 @@ function renderCartDrawer() {
         <textarea id="co-notas" maxlength="200">${escapeHtml(d.notas)}</textarea>
       </div>`;
     $$('input[name="co-entrega"]').forEach(r => {
-      r.onchange = () => { $("#co-address-fields").hidden = $('input[name="co-entrega"]:checked').value !== "domicilio"; };
+      r.onchange = () => {
+        const v = $('input[name="co-entrega"]:checked').value;
+        $("#co-address-fields").hidden = v !== "domicilio";
+        $("#co-sucursal-field").hidden = v !== "sucursal";
+      };
     });
     foot.innerHTML = `<button class="wa-btn" id="checkout-continue-btn">Ver resumen</button>`;
     $("#checkout-continue-btn").onclick = () => {
@@ -903,6 +911,7 @@ function renderCartDrawer() {
       d.localidad = $("#co-localidad").value.trim();
       d.provincia = $("#co-provincia").value.trim();
       d.cp = $("#co-cp").value.trim();
+      d.sucursal = $("#co-sucursal").value.trim();
       d.telefono = $("#co-telefono").value.trim();
       d.dni = $("#co-dni").value.trim();
       d.notas = $("#co-notas").value.trim();
@@ -911,6 +920,7 @@ function renderCartDrawer() {
       if (!d.pago) return toast("Elegí una forma de pago");
       if (!d.entrega) return toast("Elegí un método de entrega");
       if (d.entrega === "domicilio" && (!d.entreCalles || !d.localidad || !d.provincia || !d.cp)) return toast("Completá los datos de envío");
+      if (d.entrega === "sucursal" && !d.sucursal) return toast("Indicá la sucursal de Andreani más cercana");
       if (!d.telefono) return toast("Falta tu teléfono");
 
       // Recién acá tenemos nombre+teléfono validados — guardamos el contacto
@@ -942,8 +952,9 @@ function renderCartDrawer() {
         </div>` : ""}
       <div class="summary-buyer">
         <div><b>${escapeHtml(checkoutData.nombre)}</b> · ${checkoutData.telefono}</div>
-        <div>${pagoLabel(checkoutData.pago)} · ${checkoutData.entrega === "retiro" ? `Retiro en el lugar (Banfield Centro)${envio > 0 ? "" : " · Sin costo"}` : "Envío a domicilio"}</div>
+        <div>${pagoLabel(checkoutData.pago)} · ${checkoutData.entrega === "retiro" ? "Retiro en el lugar (Banfield Centro) · Sin costo" : checkoutData.entrega === "sucursal" ? "Retiro en sucursal de Andreani" : "Envío a domicilio (Andreani)"}</div>
         ${checkoutData.entrega === "domicilio" ? `<div>${escapeHtml(checkoutData.entreCalles)}, ${escapeHtml(checkoutData.localidad)}, ${escapeHtml(checkoutData.provincia)} (${escapeHtml(checkoutData.cp)})</div>` : ""}
+        ${checkoutData.entrega === "sucursal" ? `<div>${escapeHtml(checkoutData.sucursal)}</div>` : ""}
       </div>
       ${checkoutData.pago === "transferencia" && settings.transferMessage ? `
       <div class="transfer-box">
@@ -985,7 +996,7 @@ function renderCartDrawer() {
         cart = {};
         saveCart();
         cartStep = "items";
-        checkoutData = { nombre: "", pago: "", entrega: "", entreCalles: "", localidad: "", provincia: "", cp: "", telefono: "", dni: "", notas: "" };
+        checkoutData = { nombre: "", pago: "", entrega: "", entreCalles: "", localidad: "", provincia: "", cp: "", sucursal: "", telefono: "", dni: "", notas: "" };
         renderCart();
         closeCartDrawer();
         toast(msg);
@@ -1007,7 +1018,7 @@ function renderCartDrawer() {
         const orderId = await submitOrder(lines, { ...checkoutData }, grandTotal, envio);
         try {
           const mpItems = lines.map(l => ({ id: l.item.id, title: l.item.title, price: l.item.price, qty: l.qty }));
-          if (envio > 0) mpItems.push({ id: "envio", title: "Envío a domicilio", price: envio, qty: 1 });
+          if (envio > 0) mpItems.push({ id: "envio", title: envioLabel(checkoutData.pago, checkoutData.entrega), price: envio, qty: 1 });
           const res = await fetch(`${MP_FUNCTION_ENDPOINT}/api/create-preference`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1059,13 +1070,16 @@ function waOrderLink() {
   const envio = shippingCost(d.pago, d.entrega);
   let msg = `Hola! Quiero hacer este pedido de ${settings.brand || "Primera Mano"}:\n\n`;
   lines.forEach(l => { msg += `• ${l.item.title} x${l.qty} — ${fmtARS(l.item.price * l.qty)}\n`; });
-  if (envio > 0) msg += `• Envío a domicilio — ${fmtARS(envio)}\n`;
+  if (envio > 0) msg += `• ${envioLabel(d.pago, d.entrega)} — ${fmtARS(envio)}\n`;
   msg += `\nTotal: ${fmtARS(cartTotal() + envio)}\n\n`;
   msg += `Nombre: ${d.nombre}\n`;
   msg += `Forma de pago: ${pagoLabel(d.pago)}\n`;
-  msg += `Entrega: ${d.entrega === "retiro" ? "Retiro en el lugar (Banfield Centro)" : "Envío a domicilio"}\n`;
+  msg += `Entrega: ${d.entrega === "retiro" ? "Retiro en el lugar (Banfield Centro)" : d.entrega === "sucursal" ? "Retiro en sucursal de Andreani" : "Envío a domicilio (Andreani)"}\n`;
   if (d.entrega === "domicilio") {
     msg += `Dirección: ${d.entreCalles}, ${d.localidad}, ${d.provincia} (CP ${d.cp})\n`;
+  }
+  if (d.entrega === "sucursal") {
+    msg += `Sucursal: ${d.sucursal}\n`;
   }
   msg += `Teléfono: ${d.telefono}\n`;
   if (d.dni) msg += `DNI: ${d.dni}\n`;
@@ -1098,6 +1112,7 @@ async function submitOrder(lines, d, total, envio) {
       localidad: d.localidad || "",
       provincia: d.provincia || "",
       cp: d.cp || "",
+      sucursal: d.sucursal || "",
       notas: d.notas || "",
       estado: "nuevo",
       // Con Mercado Pago el pedido arranca "pendiente de pago" — el webhook
@@ -1306,6 +1321,8 @@ function renderAdminOrders() {
     const items = (o.items || []).map(it => `${it.qty} x ${escapeHtml(it.title)}`).join("<br>");
     const dirLinea = o.entrega === "domicilio"
       ? `${escapeHtml(o.entreCalles || "")}, ${escapeHtml(o.localidad || "")}, ${escapeHtml(o.provincia || "")} (${escapeHtml(o.cp || "")})`
+      : o.entrega === "sucursal"
+      ? `Sucursal Andreani: ${escapeHtml(o.sucursal || "")}`
       : "Retiro en el lugar (Banfield Centro)";
     const waNum = (o.telefono || "").replace(/\D/g, "");
     const estado = o.estado || "nuevo";
