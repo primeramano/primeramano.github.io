@@ -484,6 +484,16 @@ function categoriesFromProducts() {
   const set = new Set(Object.values(products).map(p => p.category).filter(Boolean));
   return Array.from(set).sort((a, b) => a.localeCompare(b, "es"));
 }
+// Categorías para el menú público: sólo las que tienen al menos un
+// producto en stock. El panel de administrador sigue usando
+// categoriesFromProducts() (todas), para poder encontrar y reactivar
+// productos de una categoría que quedó temporalmente sin stock.
+function publicCategories() {
+  const set = new Set(
+    Object.values(products).filter(p => p.stock !== false).map(p => p.category).filter(Boolean)
+  );
+  return Array.from(set).sort((a, b) => a.localeCompare(b, "es"));
+}
 // Versión "prolija" del nombre de categoría para usar en el link: minúsculas,
 // sin tildes ni ñ especial, espacios y símbolos como guion. Ej: "Hogar y
 // Decoración" -> "hogar-y-decoracion". Así el link queda legible y sin el
@@ -516,7 +526,7 @@ function openCategoryFromUrl() {
   try {
     const wanted = new URLSearchParams(location.search).get("cat");
     if (!wanted) return;
-    const match = categoriesFromProducts().find(c => slugify(c) === wanted.toLowerCase());
+    const match = publicCategories().find(c => slugify(c) === wanted.toLowerCase());
     if (match) goToCategory(match, { skipUrl: true, skipScroll: true });
   } catch (e) {}
 }
@@ -532,7 +542,7 @@ function catLink(cat, label) {
   return a;
 }
 function renderCats() {
-  const cats = categoriesFromProducts();
+  const cats = publicCategories();
   const wrap = $("#cats");
   wrap.innerHTML = "";
   wrap.appendChild(catLink("__home__", "Inicio"));
@@ -556,6 +566,7 @@ function renderCats() {
 function filteredProducts() {
   const term = searchTerm.trim().toLowerCase();
   const list = Object.values(products).filter(p => {
+    if (p.stock === false) return false;
     if (activeCategory !== "__all__" && activeCategory !== "__home__" && p.category !== activeCategory) return false;
     if (term && !(p.title || "").toLowerCase().includes(term)) return false;
     return true;
@@ -576,10 +587,10 @@ function recomputeTopSellers() {
 }
 // Productos agrupados por categoría para la portada, con una vista previa de N.
 function categorySections(previewCount = 6) {
-  const cats = categoriesFromProducts();
+  const cats = publicCategories();
   return cats.map(cat => {
     const items = Object.values(products)
-      .filter(p => p.category === cat)
+      .filter(p => p.category === cat && p.stock !== false)
       .sort((a, b) => (a.title || "").localeCompare(b.title || "", "es"));
     return { cat, items, preview: items.slice(0, previewCount) };
   }).filter(s => s.items.length > 0);
