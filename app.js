@@ -284,6 +284,10 @@ let checkoutData = { nombre: "", pago: "", entrega: "", entreCalles: "", localid
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 function fmtARS(n) { return "$" + Math.round(n).toLocaleString("es-AR"); }
+// Precio de venta según la regla fija: costo × 1,35, redondeado al múltiplo
+// de $100 más cercano (ver CLAUDE.md). Se usa para el botón "Aplicar ×1,35"
+// y para la alerta de margen bajo en el editor y la lista de productos.
+function suggestedPrice(costo) { return Math.round((costo || 0) * 1.35 / 100) * 100; }
 function pagoLabel(pago) {
   return pago === "efectivo" ? "EFECTIVO/CONTRA-ENTREGA" : pago === "mercadopago" ? "Mercado Pago" : "Transferencia";
 }
@@ -534,9 +538,6 @@ function renderCats() {
   wrap.appendChild(catLink("__home__", "Inicio"));
   wrap.appendChild(catLink("__all__", "Todos"));
   cats.forEach(c => wrap.appendChild(catLink(c, c)));
-  // datalist for admin product category autocomplete
-  const dl = $("#cat-list");
-  dl.innerHTML = cats.map(c => `<option value="${c.replace(/"/g,'&quot;')}">`).join("");
 
   // dropdown alternativo para elegir categoría (más cómodo en mobile)
   const sel = $("#cat-select");
@@ -1803,8 +1804,10 @@ if ($("#migrate-images-btn")) { $("#migrate-images-btn").hidden = true; }
 // ---------- Admin product list ----------
 let adminSearchTerm = "";
 let adminCatFilter = "";
+let adminStockFilter = "";
 $("#admin-search").oninput = (e) => { adminSearchTerm = e.target.value; refreshAdminProductList(); };
 $("#admin-cat-filter") && ($("#admin-cat-filter").onchange = (e) => { adminCatFilter = e.target.value; refreshAdminProductList(); });
+$("#admin-stock-filter") && ($("#admin-stock-filter").onchange = (e) => { adminStockFilter = e.target.value; refreshAdminProductList(); });
 
 // El <select> de categorías del panel de admin se arma a partir de los
 // productos que ya existen (misma fuente que categoriesFromProducts(), que
@@ -1831,6 +1834,7 @@ function refreshAdminProductList() {
   const list = Object.values(products)
     .filter(p => !term || (p.title || "").toLowerCase().includes(term))
     .filter(p => !adminCatFilter || p.category === adminCatFilter)
+    .filter(p => !adminStockFilter || (adminStockFilter === "out" ? p.stock === false : p.stock !== false))
     .sort((a, b) => (a.title || "").localeCompare(b.title || "", "es"));
   const wrap = $("#admin-product-list");
   const countLabel = $("#admin-product-count");
@@ -1839,24 +1843,56 @@ function refreshAdminProductList() {
       ? `${list.length} producto${list.length === 1 ? "" : "s"} en "${adminCatFilter}"`
       : `${list.length} producto${list.length === 1 ? "" : "s"}`;
   }
-  wrap.innerHTML = list.map(p => `
+  wrap.innerHTML = list.map(p => {
+    const lowMargin = p.costo > 0 && (p.price || 0) < suggestedPrice(p.costo);
+    return `
     <div class="admin-product-row" data-id="${p.id}">
       <img src="${p.img}" alt="">
       <div class="apr-info">
         <div class="t">${escapeHtml(p.title)}</div>
-        <div class="p">${escapeHtml(p.category || "")} · ${fmtARS(p.price || 0)}</div>
+        <div class="p">${escapeHtml(p.category || "")} · ${fmtARS(p.price || 0)}
+          ${p.stock === false ? ' <span class="pill warn">sin stock</span>' : ""}
+          ${lowMargin ? ' <span class="pill warn">margen bajo</span>' : ""}
+        </div>
       </div>
       <div class="apr-actions">
+        <button data-stock title="${p.stock === false ? "Marcar en stock" : "Marcar sin stock"}">${p.stock === false ? "✔" : "🚫"}</button>
         <button data-edit title="Editar">✎</button>
         <button data-del title="Eliminar">🗑</button>
       </div>
-    </div>`).join("") || `<p style="color:var(--muted);font-size:.85rem;">Sin productos${adminCatFilter ? ` en "${escapeHtml(adminCatFilter)}"` : ""}.</p>`;
+    </div>`;
+  }).join("") || `<p style="color:var(--muted);font-size:.85rem;">Sin productos${adminCatFilter ? ` en "${escapeHtml(adminCatFilter)}"` : ""}.</p>`;
+  wrap.querySelectorAll("[data-stock]").forEach(btn => {
+    btn.onclick = () => toggleProductStock(btn.closest(".admin-product-row").dataset.id);
+  });
   wrap.querySelectorAll("[data-edit]").forEach(btn => {
     btn.onclick = () => openEditProduct(btn.closest(".admin-product-row").dataset.id);
   });
   wrap.querySelectorAll("[data-del]").forEach(btn => {
     btn.onclick = () => deleteProduct(btn.closest(".admin-product-row").dataset.id);
   });
+}
+
+// Botón de un toque: marca sin stock / vuelve a poner en stock, sin abrir
+// el editor completo. Mismo patrón de guardado que el resto (GitHub API).
+async function toggleProductStock(id) {
+  const p = products[id];
+  if (!p) return;
+  const makeOutOfStock = p.stock !== false;
+  try {
+    const { sha, data } = await withSaveTimeout(ghGetJsonFile("data/products.json"));
+    const list = data || [];
+    const idx = list.findIndex(x => x.id === id);
+    if (idx < 0) { toast("No se encontró el producto en el catálogo", "error"); return; }
+    if (makeOutOfStock) list[idx].stock = false; else delete list[idx].stock;
+    await withSaveTimeout(ghPutJsonFile("data/products.json", list, sha, makeOutOfStock ? `Marcar sin stock: ${p.title}` : `Marcar en stock: ${p.title}`));
+    products[id] = list[idx];
+    renderCats(); renderGrid(); renderCart(); updateTrustCount(); refreshAdminProductList();
+    toast(makeOutOfStock ? "Marcado sin stock y publicado" : "Marcado en stock y publicado");
+  } catch (e) {
+    console.error(e);
+    toast(githubErrorMessage(e), "error");
+  }
 }
 
 async function deleteProduct(id) {
@@ -1880,13 +1916,66 @@ function openEditProduct(id) {
   uploadTargetId = id || ("p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7));
   $("#edit-title").textContent = id ? "Editar producto" : "Nuevo producto";
   $("#p-title").value = p ? p.title : "";
-  $("#p-category").value = p ? p.category : "";
+  $("#p-category").value = p ? (p.category || "") : "";
+  $("#p-costo").value = p && p.costo != null ? p.costo : "";
   $("#p-price").value = p ? p.price : "";
   $("#p-desc").value = p ? (p.description || "") : "";
+  const providerField = $("#p-providerid-field");
+  if (providerField) {
+    providerField.hidden = !id;
+    $("#p-providerid").value = id || "";
+  }
+  $("#p-duplicate").hidden = !id;
   renderPhotoStrip();
+  updateMarginWarning();
   $("#p-delete").hidden = !id;
   $("#edit-overlay").classList.add("open");
 }
+// Compara el precio contra la fórmula fija (costo × 1,35) y avisa en rojo
+// si quedó por debajo — sólo aviso, no bloquea: Santi puede poner un
+// precio exacto cuando corresponda (ver CLAUDE.md, regla 6).
+function updateMarginWarning() {
+  const warn = $("#p-margin-warning");
+  if (!warn) return;
+  const costo = parseFloat($("#p-costo").value) || 0;
+  const price = parseFloat($("#p-price").value) || 0;
+  if (costo > 0 && price > 0 && price < suggestedPrice(costo)) {
+    $("#p-margin-suggested").textContent = fmtARS(suggestedPrice(costo));
+    warn.style.display = "block";
+  } else {
+    warn.style.display = "none";
+  }
+}
+$("#p-costo") && ($("#p-costo").oninput = updateMarginWarning);
+$("#p-price") && ($("#p-price").oninput = updateMarginWarning);
+$("#p-apply-margin") && ($("#p-apply-margin").onclick = () => {
+  const costo = parseFloat($("#p-costo").value) || 0;
+  if (!costo) { toast("Ingresá primero el costo del proveedor", "error"); return; }
+  $("#p-price").value = suggestedPrice(costo);
+  updateMarginWarning();
+});
+// Plantilla fija del formato de descripción (ver PLAN.md, Parte H).
+const DESC_TEMPLATE = "🛒 Nombre del producto\nUna frase de uso o beneficio.\n✅ Característica 1\n✨ Característica 2\n🏠 Uso ideal";
+$("#p-desc-template") && ($("#p-desc-template").onclick = () => {
+  if ($("#p-desc").value.trim() && !confirm("Esto reemplaza la descripción actual por la plantilla. ¿Seguimos?")) return;
+  $("#p-desc").value = DESC_TEMPLATE;
+});
+// Duplicar: abre el editor como producto nuevo con los mismos datos; al
+// guardar se crea con un ID propio, el original queda intacto.
+$("#p-duplicate") && ($("#p-duplicate").onclick = () => {
+  if (!editingProductId) return;
+  const original = products[editingProductId];
+  if (!original) return;
+  openEditProduct(null);
+  $("#p-title").value = (original.title || "") + " (copia)";
+  $("#p-category").value = original.category || "";
+  $("#p-costo").value = original.costo != null ? original.costo : "";
+  $("#p-price").value = original.price || "";
+  $("#p-desc").value = original.description || "";
+  pendingImages = original.images && original.images.length ? [...original.images] : (original.img ? [original.img] : []);
+  renderPhotoStrip();
+  updateMarginWarning();
+});
 $("#edit-close").onclick = () => $("#edit-overlay").classList.remove("open");
 $("#edit-overlay").addEventListener("click", (e) => { if (e.target.id === "edit-overlay") $("#edit-overlay").classList.remove("open"); });
 
@@ -1927,6 +2016,8 @@ $("#file-product").onchange = async (e) => {
 $("#p-save").onclick = async () => {
   const title = $("#p-title").value.trim();
   const category = $("#p-category").value.trim();
+  const costoRaw = $("#p-costo").value.trim();
+  const costo = costoRaw === "" ? undefined : (parseFloat(costoRaw) || 0);
   const price = parseFloat($("#p-price").value) || 0;
   const description = $("#p-desc").value.trim();
   if (!title) { toast("Ponele un nombre al producto", "error"); return; }
@@ -1953,7 +2044,7 @@ $("#p-save").onclick = async () => {
       }
     }
     btn.textContent = "Guardando...";
-    const body = { id, title, category, price, description, images: finalImages, img: finalImages[0], imgHi: finalImages[0] };
+    const body = { id, title, category, costo, price, description, images: finalImages, img: finalImages[0], imgHi: finalImages[0] };
     const { sha, data } = await withSaveTimeout(ghGetJsonFile("data/products.json"));
     const list = data || [];
     const idx = list.findIndex(p => p.id === id);

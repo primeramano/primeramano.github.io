@@ -198,9 +198,14 @@ src="https://www.facebook.com/tr?id=1021991960884965&ev=PageView&noscript=1"
     <button class="btn" id="migrate-images-btn" style="width:100%;margin-bottom:6px;">⚡ Optimizar fotos (mover a Storage)</button>
     <p id="migrate-progress" hidden style="font-size:.8rem;color:var(--muted);margin:0 0 12px;"></p>
     <input class="admin-search" id="admin-search" type="text" placeholder="Buscar en tus productos...">
-    <div class="orders-filter">
+    <div class="orders-filter two-col">
       <select id="admin-cat-filter">
         <option value="">Todas las categorías</option>
+      </select>
+      <select id="admin-stock-filter">
+        <option value="">En stock y sin stock</option>
+        <option value="in">Sólo en stock</option>
+        <option value="out">Sólo sin stock</option>
       </select>
     </div>
     <p id="admin-product-count" style="font-size:.78rem;color:var(--muted);margin:0 0 8px;"></p>
@@ -337,24 +342,53 @@ src="https://www.facebook.com/tr?id=1021991960884965&ev=PageView&noscript=1"
         <label>Nombre</label>
         <input type="text" id="p-title">
       </div>
+      <div class="field" id="p-providerid-field" hidden>
+        <label>ID del proveedor (sólo para vos, para chequear stock)</label>
+        <input type="text" id="p-providerid" readonly>
+      </div>
+      <div class="field">
+        <label>Categoría</label>
+        <select id="p-category">
+          <option value="">Elegí una categoría</option>
+          <option>Aire Libre y Jardín</option>
+          <option>Baño y Limpieza</option>
+          <option>Belleza y Bienestar</option>
+          <option>Cocina y Bazar</option>
+          <option>Comercial</option>
+          <option>Electrodomésticos</option>
+          <option>Herramientas y Baterías</option>
+          <option>Hogar y Decoración</option>
+          <option>Iluminación</option>
+          <option>Infantil y Juguetería</option>
+          <option>Mascotas</option>
+          <option>Moda y Valijas</option>
+          <option>Ofertas</option>
+          <option>Organización</option>
+          <option>Tecnología y Audio</option>
+        </select>
+      </div>
       <div class="field-row">
         <div class="field">
-          <label>Categoría</label>
-          <input type="text" id="p-category" list="cat-list">
-          <datalist id="cat-list"></datalist>
+          <label>Costo (proveedor, no se muestra al público)</label>
+          <input type="number" id="p-costo" inputmode="decimal">
         </div>
         <div class="field">
-          <label>Precio ($)</label>
+          <label>Precio de venta ($)</label>
           <input type="number" id="p-price" inputmode="decimal">
         </div>
       </div>
+      <button type="button" class="btn" id="p-apply-margin" style="width:100%;margin-bottom:8px;">Aplicar ×1,35 (calcular desde el costo)</button>
+      <p id="p-margin-warning" class="field-hint" style="color:var(--danger);display:none;margin:-4px 0 14px;">⚠ Este precio queda por debajo del costo × 1,35. Debería ser al menos <strong id="p-margin-suggested"></strong>.</p>
       <div class="field">
         <label>Descripción</label>
+        <button type="button" class="btn" id="p-desc-template" style="margin-bottom:8px;">Usar plantilla</button>
         <textarea id="p-desc" class="p-desc-textarea"></textarea>
+        <p class="field-hint">Emoji + nombre, una frase de uso, hasta 4 viñetas con emoji. Sin precios, sin nombrar al proveedor.</p>
       </div>
     </div>
     <div class="btn-row">
       <button class="btn btn-primary" id="p-save" style="flex:1;">Guardar</button>
+      <button class="btn" id="p-duplicate" hidden>Duplicar</button>
       <button class="btn btn-danger" id="p-delete" hidden>Eliminar</button>
     </div>
   </div>
