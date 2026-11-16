@@ -1546,8 +1546,9 @@ function renderAuthSlot() {
     return;
   }
   if (!fbUser) {
-    // Nadie logueado: única opción es iniciar sesión con Google.
-    slot.innerHTML = `<button class="admin-toggle off" id="admin-login-btn" title="Iniciar sesión con Google">🔑 Ingresar</button>`;
+    // Nadie logueado: única opción es iniciar sesión con Google. Ícono
+    // minimalista (👤) a la derecha del buscador, sin texto.
+    slot.innerHTML = `<button class="admin-toggle off icon-only" id="admin-login-btn" title="Iniciar sesión con Google" aria-label="Iniciar sesión con Google">👤</button>`;
     $("#admin-login-btn").onclick = signInAdmin;
     return;
   }
