@@ -1565,28 +1565,36 @@ function renderAuthSlot() {
   $("#admin-lock-btn").onclick = signOutAdmin;
 }
 
-// En celulares, signInWithPopup casi siempre falla (el navegador móvil
-// bloquea o no soporta bien el popup) — por eso en mobile se usa
-// signInWithRedirect, que manda a la página de Google y vuelve acá
-// solo. El resultado de esa vuelta se procesa en getRedirectResult()
-// más abajo. En compu se sigue usando el popup, que es más cómodo.
-const isMobileBrowser = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-
+// Se intenta siempre primero con ventana (signInWithPopup): es el método
+// más confiable hoy, en compu y en celular (Chrome/Safari normales lo
+// permiten bien cuando sale de un toque directo del usuario, como acá).
+// El método anterior (signInWithRedirect, mandar a la página de Google y
+// volver) depende de que el navegador conserve un estado guardado durante
+// ese viaje de ida y vuelta — varios celulares lo bloquean por sus
+// protecciones de privacidad, y ahí el login queda pegado en silencio, sin
+// ningún aviso de error. Por eso ahora el redirect queda solo como
+// respaldo, para cuando el popup no se puede abrir.
 async function signInAdmin() {
-  if (isMobileBrowser) {
-    try {
-      await setPersistence(auth, browserLocalPersistence);
-    } catch (e) { console.error("setPersistence", e); }
-    signInWithRedirect(auth, googleProvider).catch((e) => {
-      console.error(e);
-      toast("No se pudo iniciar sesión con Google", "error");
-    });
-    return;
-  }
-  signInWithPopup(auth, googleProvider).catch((e) => {
-    console.error(e);
+  try {
+    await setPersistence(auth, browserLocalPersistence);
+  } catch (e) { console.error("setPersistence", e); }
+  try {
+    await signInWithPopup(auth, googleProvider);
+  } catch (e) {
+    console.error("signInWithPopup", e);
+    const code = e && e.code;
+    // El usuario cerró la ventana o canceló a propósito: no insistir con el redirect.
+    if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") return;
+    // El navegador no deja abrir la ventana (bloqueada o no soportada): probamos el redirect como respaldo.
+    if (code === "auth/popup-blocked" || code === "auth/operation-not-supported-in-this-environment") {
+      signInWithRedirect(auth, googleProvider).catch((e2) => {
+        console.error("signInWithRedirect", e2);
+        toast("No se pudo iniciar sesión con Google", "error");
+      });
+      return;
+    }
     toast("No se pudo iniciar sesión con Google", "error");
-  });
+  }
 }
 function signOutAdmin() {
   closeAdminDrawer();
