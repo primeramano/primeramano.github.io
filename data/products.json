@@ -2515,22 +2515,6 @@
     "costo": 16000
   },
   {
-    "id": "6a285910ca358900047e7763",
-    "title": "Buzo Oversize S M L XL",
-    "category": "Moda y Valijas",
-    "price": 21600,
-    "description": "",
-    "img": "https://pency-images.nyc3.digitaloceanspaces.com/revoleoficial/1781029112916.jpg",
-    "imgHi": "https://pency-images.nyc3.digitaloceanspaces.com/revoleoficial/1781029112916.jpg",
-    "images": [
-      "https://pency-images.nyc3.digitaloceanspaces.com/revoleoficial/1781029112916.jpg",
-      "https://pency-images.nyc3.digitaloceanspaces.com/revoleoficial/1781029123333.jpg",
-      "https://pency-images.nyc3.digitaloceanspaces.com/revoleoficial/1781029127030.jpg",
-      "https://pency-images.nyc3.digitaloceanspaces.com/revoleoficial/1781029130836.jpg"
-    ],
-    "stock": false
-  },
-  {
     "id": "6a2ae063e97268000423f536",
     "title": "Alicate para Mascotas con Luz LED",
     "category": "Mascotas",
