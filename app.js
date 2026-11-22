@@ -589,9 +589,15 @@ function recomputeTopSellers() {
 function categorySections(previewCount = 6) {
   const cats = publicCategories();
   return cats.map(cat => {
+    // Los marcados "destacado" van primero (en ese grupo, orden alfabético
+    // entre ellos), después el resto — así Santi elige a mano cuáles son
+    // los primeros que se ven de cada categoría en el inicio.
     const items = Object.values(products)
       .filter(p => p.category === cat && p.stock !== false)
-      .sort((a, b) => (a.title || "").localeCompare(b.title || "", "es"));
+      .sort((a, b) => {
+        const d = (b.destacado ? 1 : 0) - (a.destacado ? 1 : 0);
+        return d !== 0 ? d : (a.title || "").localeCompare(b.title || "", "es");
+      });
     return { cat, items, preview: items.slice(0, previewCount) };
   }).filter(s => s.items.length > 0);
 }
@@ -1873,15 +1879,20 @@ function refreshAdminProductList() {
         <div class="p">${escapeHtml(p.category || "")} · ${fmtARS(p.price || 0)}
           ${p.stock === false ? ' <span class="pill warn">sin stock</span>' : ""}
           ${lowMargin ? ' <span class="pill warn">margen bajo</span>' : ""}
+          ${p.destacado ? ' <span class="pill info">⭐ destacado</span>' : ""}
         </div>
       </div>
       <div class="apr-actions">
+        <button data-featured title="${p.destacado ? "Quitar de destacados" : "Marcar como destacado"}">${p.destacado ? "⭐" : "☆"}</button>
         <button data-stock title="${p.stock === false ? "Marcar en stock" : "Marcar sin stock"}">${p.stock === false ? "✔" : "🚫"}</button>
         <button data-edit title="Editar">✎</button>
         <button data-del title="Eliminar">🗑</button>
       </div>
     </div>`;
   }).join("") || `<p style="color:var(--muted);font-size:.85rem;">Sin productos${adminCatFilter ? ` en "${escapeHtml(adminCatFilter)}"` : ""}.</p>`;
+  wrap.querySelectorAll("[data-featured]").forEach(btn => {
+    btn.onclick = () => toggleFeatured(btn.closest(".admin-product-row").dataset.id);
+  });
   wrap.querySelectorAll("[data-stock]").forEach(btn => {
     btn.onclick = () => toggleProductStock(btn.closest(".admin-product-row").dataset.id);
   });
@@ -1915,6 +1926,28 @@ async function toggleProductStock(id) {
   }
 }
 
+// Botón de un toque: marca/saca "destacado" (aparece primero en su
+// categoría en el inicio), sin abrir el editor completo.
+async function toggleFeatured(id) {
+  const p = products[id];
+  if (!p) return;
+  const makeFeatured = !p.destacado;
+  try {
+    const { sha, data } = await withSaveTimeout(ghGetJsonFile("data/products.json"));
+    const list = data || [];
+    const idx = list.findIndex(x => x.id === id);
+    if (idx < 0) { toast("No se encontró el producto en el catálogo", "error"); return; }
+    if (makeFeatured) list[idx].destacado = true; else delete list[idx].destacado;
+    await withSaveTimeout(ghPutJsonFile("data/products.json", list, sha, makeFeatured ? `Destacar: ${p.title}` : `Quitar destacado: ${p.title}`));
+    products[id] = list[idx];
+    renderCats(); renderGrid(); refreshAdminProductList();
+    toast(makeFeatured ? "Marcado como destacado y publicado" : "Sacado de destacados y publicado");
+  } catch (e) {
+    console.error(e);
+    toast(githubErrorMessage(e), "error");
+  }
+}
+
 async function deleteProduct(id) {
   if (!confirm("¿Eliminar este producto del catálogo?")) return;
   try {
@@ -1937,6 +1970,7 @@ function openEditProduct(id) {
   $("#edit-title").textContent = id ? "Editar producto" : "Nuevo producto";
   $("#p-title").value = p ? p.title : "";
   $("#p-category").value = p ? (p.category || "") : "";
+  $("#p-featured").checked = !!(p && p.destacado);
   $("#p-costo").value = p && p.costo != null ? p.costo : "";
   $("#p-price").value = p ? p.price : "";
   $("#p-desc").value = p ? (p.description || "") : "";
@@ -2038,6 +2072,7 @@ $("#p-save").onclick = async () => {
   const category = $("#p-category").value.trim();
   const costoRaw = $("#p-costo").value.trim();
   const costo = costoRaw === "" ? undefined : (parseFloat(costoRaw) || 0);
+  const destacado = $("#p-featured").checked ? true : undefined;
   const price = parseFloat($("#p-price").value) || 0;
   const description = $("#p-desc").value.trim();
   if (!title) { toast("Ponele un nombre al producto", "error"); return; }
@@ -2064,7 +2099,7 @@ $("#p-save").onclick = async () => {
       }
     }
     btn.textContent = "Guardando...";
-    const body = { id, title, category, costo, price, description, images: finalImages, img: finalImages[0], imgHi: finalImages[0] };
+    const body = { id, title, category, destacado, costo, price, description, images: finalImages, img: finalImages[0], imgHi: finalImages[0] };
     const { sha, data } = await withSaveTimeout(ghGetJsonFile("data/products.json"));
     const list = data || [];
     const idx = list.findIndex(p => p.id === id);
