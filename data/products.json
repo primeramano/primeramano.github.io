@@ -8291,7 +8291,8 @@
       "https://pency-images.nyc3.digitaloceanspaces.com/revoleoficial/1792766688993.jpg",
       "https://pency-images.nyc3.digitaloceanspaces.com/revoleoficial/1792766699514.jpg"
     ],
-    "costo": 75000
+    "costo": 75000,
+    "destacado": true
   },
   {
     "id": "6ae357b255d3dc0007ff704b",
