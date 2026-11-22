@@ -96,7 +96,8 @@
     "images": [
       "assets/products/69595613b9a3cb0004c25ab5-0.jpg?v=1788735813249"
     ],
-    "costo": 62000
+    "costo": 62000,
+    "destacado": true
   },
   {
     "id": "6959563205fbf9000405365e",
