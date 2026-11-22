@@ -484,6 +484,16 @@ function categoriesFromProducts() {
   const set = new Set(Object.values(products).map(p => p.category).filter(Boolean));
   return Array.from(set).sort((a, b) => a.localeCompare(b, "es"));
 }
+// Categorías para el menú público: sólo las que tienen al menos un
+// producto en stock. El panel de administrador sigue usando
+// categoriesFromProducts() (todas), para poder encontrar y reactivar
+// productos de una categoría que quedó temporalmente sin stock.
+function publicCategories() {
+  const set = new Set(
+    Object.values(products).filter(p => p.stock !== false).map(p => p.category).filter(Boolean)
+  );
+  return Array.from(set).sort((a, b) => a.localeCompare(b, "es"));
+}
 // Versión "prolija" del nombre de categoría para usar en el link: minúsculas,
 // sin tildes ni ñ especial, espacios y símbolos como guion. Ej: "Hogar y
 // Decoración" -> "hogar-y-decoracion". Así el link queda legible y sin el
@@ -516,7 +526,7 @@ function openCategoryFromUrl() {
   try {
     const wanted = new URLSearchParams(location.search).get("cat");
     if (!wanted) return;
-    const match = categoriesFromProducts().find(c => slugify(c) === wanted.toLowerCase());
+    const match = publicCategories().find(c => slugify(c) === wanted.toLowerCase());
     if (match) goToCategory(match, { skipUrl: true, skipScroll: true });
   } catch (e) {}
 }
@@ -532,7 +542,7 @@ function catLink(cat, label) {
   return a;
 }
 function renderCats() {
-  const cats = categoriesFromProducts();
+  const cats = publicCategories();
   const wrap = $("#cats");
   wrap.innerHTML = "";
   wrap.appendChild(catLink("__home__", "Inicio"));
@@ -556,6 +566,7 @@ function renderCats() {
 function filteredProducts() {
   const term = searchTerm.trim().toLowerCase();
   const list = Object.values(products).filter(p => {
+    if (p.stock === false) return false;
     if (activeCategory !== "__all__" && activeCategory !== "__home__" && p.category !== activeCategory) return false;
     if (term && !(p.title || "").toLowerCase().includes(term)) return false;
     return true;
@@ -576,11 +587,17 @@ function recomputeTopSellers() {
 }
 // Productos agrupados por categoría para la portada, con una vista previa de N.
 function categorySections(previewCount = 6) {
-  const cats = categoriesFromProducts();
+  const cats = publicCategories();
   return cats.map(cat => {
+    // Los marcados "destacado" van primero (en ese grupo, orden alfabético
+    // entre ellos), después el resto — así Santi elige a mano cuáles son
+    // los primeros que se ven de cada categoría en el inicio.
     const items = Object.values(products)
-      .filter(p => p.category === cat)
-      .sort((a, b) => (a.title || "").localeCompare(b.title || "", "es"));
+      .filter(p => p.category === cat && p.stock !== false)
+      .sort((a, b) => {
+        const d = (b.destacado ? 1 : 0) - (a.destacado ? 1 : 0);
+        return d !== 0 ? d : (a.title || "").localeCompare(b.title || "", "es");
+      });
     return { cat, items, preview: items.slice(0, previewCount) };
   }).filter(s => s.items.length > 0);
 }
@@ -1862,15 +1879,20 @@ function refreshAdminProductList() {
         <div class="p">${escapeHtml(p.category || "")} · ${fmtARS(p.price || 0)}
           ${p.stock === false ? ' <span class="pill warn">sin stock</span>' : ""}
           ${lowMargin ? ' <span class="pill warn">margen bajo</span>' : ""}
+          ${p.destacado ? ' <span class="pill info">⭐ destacado</span>' : ""}
         </div>
       </div>
       <div class="apr-actions">
+        <button data-featured title="${p.destacado ? "Quitar de destacados" : "Marcar como destacado"}">${p.destacado ? "⭐" : "☆"}</button>
         <button data-stock title="${p.stock === false ? "Marcar en stock" : "Marcar sin stock"}">${p.stock === false ? "✔" : "🚫"}</button>
         <button data-edit title="Editar">✎</button>
         <button data-del title="Eliminar">🗑</button>
       </div>
     </div>`;
   }).join("") || `<p style="color:var(--muted);font-size:.85rem;">Sin productos${adminCatFilter ? ` en "${escapeHtml(adminCatFilter)}"` : ""}.</p>`;
+  wrap.querySelectorAll("[data-featured]").forEach(btn => {
+    btn.onclick = () => toggleFeatured(btn.closest(".admin-product-row").dataset.id);
+  });
   wrap.querySelectorAll("[data-stock]").forEach(btn => {
     btn.onclick = () => toggleProductStock(btn.closest(".admin-product-row").dataset.id);
   });
@@ -1904,6 +1926,28 @@ async function toggleProductStock(id) {
   }
 }
 
+// Botón de un toque: marca/saca "destacado" (aparece primero en su
+// categoría en el inicio), sin abrir el editor completo.
+async function toggleFeatured(id) {
+  const p = products[id];
+  if (!p) return;
+  const makeFeatured = !p.destacado;
+  try {
+    const { sha, data } = await withSaveTimeout(ghGetJsonFile("data/products.json"));
+    const list = data || [];
+    const idx = list.findIndex(x => x.id === id);
+    if (idx < 0) { toast("No se encontró el producto en el catálogo", "error"); return; }
+    if (makeFeatured) list[idx].destacado = true; else delete list[idx].destacado;
+    await withSaveTimeout(ghPutJsonFile("data/products.json", list, sha, makeFeatured ? `Destacar: ${p.title}` : `Quitar destacado: ${p.title}`));
+    products[id] = list[idx];
+    renderCats(); renderGrid(); refreshAdminProductList();
+    toast(makeFeatured ? "Marcado como destacado y publicado" : "Sacado de destacados y publicado");
+  } catch (e) {
+    console.error(e);
+    toast(githubErrorMessage(e), "error");
+  }
+}
+
 async function deleteProduct(id) {
   if (!confirm("¿Eliminar este producto del catálogo?")) return;
   try {
@@ -1926,6 +1970,7 @@ function openEditProduct(id) {
   $("#edit-title").textContent = id ? "Editar producto" : "Nuevo producto";
   $("#p-title").value = p ? p.title : "";
   $("#p-category").value = p ? (p.category || "") : "";
+  $("#p-featured").checked = !!(p && p.destacado);
   $("#p-costo").value = p && p.costo != null ? p.costo : "";
   $("#p-price").value = p ? p.price : "";
   $("#p-desc").value = p ? (p.description || "") : "";
@@ -2027,6 +2072,7 @@ $("#p-save").onclick = async () => {
   const category = $("#p-category").value.trim();
   const costoRaw = $("#p-costo").value.trim();
   const costo = costoRaw === "" ? undefined : (parseFloat(costoRaw) || 0);
+  const destacado = $("#p-featured").checked ? true : undefined;
   const price = parseFloat($("#p-price").value) || 0;
   const description = $("#p-desc").value.trim();
   if (!title) { toast("Ponele un nombre al producto", "error"); return; }
@@ -2053,7 +2099,7 @@ $("#p-save").onclick = async () => {
       }
     }
     btn.textContent = "Guardando...";
-    const body = { id, title, category, costo, price, description, images: finalImages, img: finalImages[0], imgHi: finalImages[0] };
+    const body = { id, title, category, destacado, costo, price, description, images: finalImages, img: finalImages[0], imgHi: finalImages[0] };
     const { sha, data } = await withSaveTimeout(ghGetJsonFile("data/products.json"));
     const list = data || [];
     const idx = list.findIndex(p => p.id === id);
